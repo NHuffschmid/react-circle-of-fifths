@@ -1,0 +1,53 @@
+{
+  "name": "react-circle-of-fifths",
+  "version": "0.1.0",
+  "description": "A React component that renders a Circle of Fifths with real-time key detection from MIDI input.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-piano-keyboard": "*"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": false
+    },
+    "react-piano-keyboard": {
+      "optional": false
+    }
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.8.0",
+    "@testing-library/react": "^14.3.1",
+    "@types/react": "^18.0.0",
+    "jsdom": "^26.1.0",
+    "typescript": "^5.0.0",
+    "vitest": "^3.2.4"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/NHuffschmid/react-circle-of-fifths.git"
+  },
+  "homepage": "https://github.com/NHuffschmid/react-circle-of-fifths#readme",
+  "bugs": {
+    "url": "https://github.com/NHuffschmid/react-circle-of-fifths/issues"
+  },
+  "author": "Norbert Huffschmid <depinus@gmx.de>",
+  "keywords": [
+    "react",
+    "circle-of-fifths",
+    "music",
+    "midi",
+    "key-detection",
+    "music-theory"
+  ]
+}
