@@ -9,9 +9,8 @@
     "skipLibCheck": true,
     "noEmit": true,
     "jsx": "react-jsx",
-    "baseUrl": ".",
     "paths": {
-      "react-piano-keyboard": ["../../../react-piano-keyboard/src/index.ts"]
+      "react-piano-keyboard": ["../../react-piano-keyboard/src/index.ts"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts"]
