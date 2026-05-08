@@ -25,6 +25,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Checkout react-piano-keyboard
+        uses: actions/checkout@v4
+        with:
+          repository: NHuffschmid/react-piano-keyboard
+          path: ../react-piano-keyboard
+
       - name: Use Node.js 22.x
         uses: actions/setup-node@v4
         with:
