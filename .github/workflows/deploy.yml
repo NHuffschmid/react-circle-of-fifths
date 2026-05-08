@@ -24,6 +24,8 @@ jobs:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
 
       - name: Checkout react-piano-keyboard
         uses: actions/checkout@v4
@@ -35,6 +37,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22.x
+          cache: 'npm'
+          cache-dependency-path: listener/package-lock.json
 
       - name: Install dependencies
         working-directory: listener
