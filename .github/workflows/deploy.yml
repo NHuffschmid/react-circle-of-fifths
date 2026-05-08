@@ -1,0 +1,68 @@
+name: Deploy Listener to GitHub Pages
+
+on:
+  push:
+    paths:
+      - 'listener/**'
+      - 'src/**'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout react-piano-keyboard
+        uses: actions/checkout@v4
+        with:
+          repository: NHuffschmid/react-piano-keyboard
+          path: react-piano-keyboard
+
+      - name: Use Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: 'npm'
+          cache-dependency-path: listener/package-lock.json
+
+      - name: Install dependencies
+        working-directory: listener
+        run: npm ci
+
+      - name: Build
+        working-directory: listener
+        env:
+          REACT_PIANO_KEYBOARD_PATH: ../react-piano-keyboard/src
+        run: npm run build
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: listener/dist
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
