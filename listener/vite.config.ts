@@ -9,7 +9,7 @@ const reactPath = path.resolve(__dirname, 'node_modules/react');
 const reactDomPath = path.resolve(__dirname, 'node_modules/react-dom');
 
 export default defineConfig({
-  base: '/circle-of-fifths/',
+  base: '/react-circle-of-fifths/',
   plugins: [react()],
   resolve: {
     alias: {
