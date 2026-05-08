@@ -32,6 +32,10 @@ Since `react-piano-keyboard` is not on npm, the consuming app must configure a m
 (e.g. via Vite's `resolve.alias`) pointing `react-piano-keyboard` to the
 `react-piano-keyboard/src/index.ts` path of its own submodule checkout.
 
+## Live Demo
+
+A live demo is available at **https://nhuffschmid.github.io/react-circle-of-fifths/**.
+
 ## Usage
 
 ### Rendering the Component
