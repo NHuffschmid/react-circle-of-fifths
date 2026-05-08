@@ -36,6 +36,7 @@ Since `react-piano-keyboard` is not on npm, the consuming app must configure a m
 
 A live demo is available at **https://nhuffschmid.github.io/react-circle-of-fifths/**.
 
+
 ## Usage
 
 ### Rendering the Component
