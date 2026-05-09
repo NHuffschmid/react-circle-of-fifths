@@ -17,6 +17,37 @@ function detectBrowserLanguage(): Language {
 
 const QR_URL = 'https://nhuffschmid.github.io/react-circle-of-fifths/';
 
+// ── Localised error messages ──────────────────────────────────────────────────
+
+const MIC_ERRORS: Record<string, Record<Language, { title: string; hint: string }>> = {
+    MICROPHONE_DENIED: {
+        de: { title: 'Mikrofonzugriff verweigert', hint: 'Bitte erlaube den Mikrofonzugriff in den Browser-Einstellungen und versuche es erneut.' },
+        en: { title: 'Microphone access denied',  hint: 'Please allow microphone access in your browser settings and try again.' },
+        fr: { title: 'Accès au microphone refusé', hint: 'Veuillez autoriser l’accès au microphone dans les paramètres du navigateur.' },
+        it: { title: 'Accesso al microfono negato', hint: 'Consenti l’accesso al microfono nelle impostazioni del browser e riprova.' },
+        es: { title: 'Acceso al micrófono denegado', hint: 'Permite el acceso al micrófono en los ajustes del navegador e inténtalo de nuevo.' },
+    },
+    MICROPHONE_NOT_FOUND: {
+        de: { title: 'Kein Mikrofon gefunden', hint: 'Stelle sicher, dass ein Mikrofon angeschlossen oder aktiviert ist.' },
+        en: { title: 'No microphone found',    hint: 'Make sure a microphone is connected and enabled.' },
+        fr: { title: 'Aucun microphone trouvé', hint: 'Vérifiez qu’un microphone est connecté et activé.' },
+        it: { title: 'Nessun microfono trovato', hint: 'Assicurati che un microfono sia collegato e abilitato.' },
+        es: { title: 'No se encontró micrófono', hint: 'Asegúrate de que haya un micrófono conectado y habilitado.' },
+    },
+    MICROPHONE_IN_USE: {
+        de: { title: 'Mikrofon wird verwendet', hint: 'Das Mikrofon wird von einer anderen App genutzt. Schließe sie und versuche es erneut.' },
+        en: { title: 'Microphone is in use',   hint: 'Another app is using the microphone. Close it and try again.' },
+        fr: { title: 'Microphone déjà utilisé', hint: 'Une autre application utilise le microphone. Fermez-la et réessayez.' },
+        it: { title: 'Microfono in uso',        hint: 'Un’altra app sta usando il microfono. Chiudila e riprova.' },
+        es: { title: 'Micrófono en uso',        hint: 'Otra aplicación está usando el micrófono. Ciérrala e inténtalo de nuevo.' },
+    },
+};
+
+function getMicError(code: string | null, lang: Language) {
+    if (!code) return null;
+    return MIC_ERRORS[code]?.[lang] ?? null;
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 function App() {
@@ -201,16 +232,21 @@ function App() {
                 boxSizing:      'border-box',
             }}>
                 {/* Error message (only shown when status === 'error') */}
-                {status === 'error' && (
-                    <p style={{
-                        margin: 0,
-                        fontSize: '0.78rem',
-                        color: '#ff6b6b',
-                        textAlign: 'center',
-                    }}>
-                        {errorMessage ?? 'Error'}
-                    </p>
-                )}
+                {status === 'error' && (() => {
+                    const localised = getMicError(errorMessage, language);
+                    return (
+                        <div style={{ margin: 0, textAlign: 'center' }}>
+                            <p style={{ margin: '0 0 4px', fontSize: '0.82rem', color: '#ff6b6b', fontWeight: 600 }}>
+                                {localised?.title ?? errorMessage ?? 'Error'}
+                            </p>
+                            {localised && (
+                                <p style={{ margin: 0, fontSize: '0.75rem', color: '#ff9999', maxWidth: 280 }}>
+                                    {localised.hint}
+                                </p>
+                            )}
+                        </div>
+                    );
+                })()}
 
                 {/* Loading indicator (nur für Modell-Laden, nicht für Requesting microphone) */}
                 {isBusy && status === 'loading' && (

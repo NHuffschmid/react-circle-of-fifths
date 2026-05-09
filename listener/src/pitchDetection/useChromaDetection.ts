@@ -297,10 +297,19 @@ export function useChromaDetection(): PitchDetectionResult {
             isActiveRef.current = false;
             setStatus('error');
             const domErr = err as DOMException | Error;
-            const msg =
-                domErr?.name === 'NotAllowedError' || domErr?.name === 'PermissionDeniedError'
-                    ? 'Microphone access denied. Please allow microphone access and try again.'
-                    : (domErr?.message ?? 'An unknown error occurred.');
+            const name   = (domErr as DOMException)?.name ?? '';
+            let msg: string;
+            if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+                msg = 'MICROPHONE_DENIED';
+            } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+                msg = 'MICROPHONE_NOT_FOUND';
+            } else if (name === 'NotReadableError' || name === 'TrackStartError') {
+                msg = 'MICROPHONE_IN_USE';
+            } else if (name === 'SecurityError') {
+                msg = 'MICROPHONE_DENIED';
+            } else {
+                msg = domErr?.message ?? 'UNKNOWN';
+            }
             setErrorMessage(msg);
         }
     }, []);
