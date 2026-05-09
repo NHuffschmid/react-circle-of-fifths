@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { CircleOfFifths } from '../../src';
 import { useCircleOfFifthsDetection } from '../../src/useCircleOfFifthsDetection';
@@ -22,12 +22,35 @@ const QR_URL = 'https://nhuffschmid.github.io/react-circle-of-fifths/';
 function App() {
     const [language, setLanguage] = useState<Language>(detectBrowserLanguage);
 
+    // Sync <html lang> so the browser doesn't offer to translate the page
+    useEffect(() => {
+        document.documentElement.lang = language;
+    }, [language]);
+
     const { status, errorMessage, pressedNotes, start, stop } = usePitchDetection();
     const { selectedMajorKeys, selectedMinorKeys, dominantSeventhMajorKeys } =
         useCircleOfFifthsDetection(pressedNotes);
 
     const isActive = status === 'active';
     const isBusy   = status === 'requesting' || status === 'loading';
+
+    // Screen Wake Lock – keep the display on while the listener is running
+    const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+    useEffect(() => {
+        if (!('wakeLock' in navigator)) return;
+        if (isActive) {
+            navigator.wakeLock.request('screen')
+                .then(lock => { wakeLockRef.current = lock; })
+                .catch(() => { /* permission denied or not supported – ignore */ });
+        } else {
+            wakeLockRef.current?.release().catch(() => {});
+            wakeLockRef.current = null;
+        }
+        return () => {
+            wakeLockRef.current?.release().catch(() => {});
+            wakeLockRef.current = null;
+        };
+    }, [isActive]);
 
     const handleToggle = useCallback(() => {
         if (isActive)         stop();
@@ -152,7 +175,9 @@ function App() {
                                 justifyContent: 'center',
                             }}
                         >
-                            {isBusy ? '…' : isActive ? '⏹' : '▶'}
+                            {/* \uFE0E (VS15) forces text rendering instead of colour emoji
+                                on Android, preventing the blue-square emoji background */}
+                            {isBusy ? '\u2026' : isActive ? '\u23F9\uFE0E' : '\u25B6\uFE0E'}
                         </button>
                     </div>
                 </div>
