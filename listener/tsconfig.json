@@ -9,6 +9,7 @@
     "skipLibCheck": true,
     "noEmit": true,
     "jsx": "react-jsx",
+    "types": ["vite/client"],
     "paths": {
       "react-piano-keyboard": ["../../react-piano-keyboard/src/index.ts"]
     }

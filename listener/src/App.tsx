@@ -1,22 +1,14 @@
 import React, { useCallback, useState } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import { CircleOfFifths } from '../../src';
 import { useCircleOfFifthsDetection } from '../../src/useCircleOfFifthsDetection';
 import { usePitchDetection } from './pitchDetection';
-import type { PitchDetectionStatus } from './pitchDetection';
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// ── Constants ─────────────────────────────────────────────────────────────────
 
 type Language = 'de' | 'en' | 'fr' | 'it' | 'es';
 
-// ── Status helpers ────────────────────────────────────────────────────────────
-
-const STATUS_LABEL: Record<PitchDetectionStatus, string> = {
-    idle:       'Press Start to begin listening',
-    requesting: 'Waiting for microphone permission…',
-    loading:    'Loading model (~20 MB, first time only)…',
-    active:     '● Listening',
-    error:      'Error',
-};
+const QR_URL = 'https://nhuffschmid.github.io/react-circle-of-fifths/';
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -31,17 +23,14 @@ function App() {
     const isBusy   = status === 'requesting' || status === 'loading';
 
     const handleToggle = useCallback(() => {
-        if (isActive)                     stop();
+        if (isActive)         stop();
         else if (!isBusy) void start();
     }, [isActive, isBusy, start, stop]);
-
-    const statusText  = status === 'error' ? (errorMessage ?? 'Error') : STATUS_LABEL[status];
-    const statusColor = status === 'error' ? '#ff6b6b' : status === 'active' ? '#4caf50' : '#888';
 
     return (
         <div style={{
             width: '100vw',
-            height: '100dvh',          // dvh = dynamic viewport height (accounts for mobile browser chrome)
+            height: '100dvh',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
@@ -51,28 +40,27 @@ function App() {
             overflow: 'hidden',
             userSelect: 'none',
         }}>
+            <style>{`
+                @keyframes cof-btn-pulse {
+                    0%, 100% { background: #b71c1c; box-shadow: 0 0 0 0 rgba(183,28,28,0.7); }
+                    50%      { background: #e53935; box-shadow: 0 0 0 10px rgba(183,28,28,0); }
+                }
+                @keyframes cof-dot-blink {
+                    0%, 80%, 100% { opacity: 0.2; }
+                    40%           { opacity: 1;   }
+                }
+                .cof-dot { animation: cof-dot-blink 1.4s infinite ease-in-out; display: inline-block; }
+                .cof-dot:nth-child(2) { animation-delay: 0.2s; }
+                .cof-dot:nth-child(3) { animation-delay: 0.4s; }
+            `}</style>
 
-            {/* ── Header ───────────────────────────────────────────────────── */}
-            <header style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                width: '100%',
-                padding: '12px 16px',
-                boxSizing: 'border-box',
-                flexShrink: 0,
-                borderBottom: '1px solid #222',
+            {/* ── Language selector (top-right overlay) ─────────────────── */}
+            <div style={{
+                position: 'absolute',
+                top: 12,
+                right: 16,
+                zIndex: 10,
             }}>
-                <h1 style={{
-                    margin: 0,
-                    fontSize: '0.95rem',
-                    fontWeight: 600,
-                    letterSpacing: '0.04em',
-                    whiteSpace: 'nowrap',
-                }}>
-                    Circle of Fifths · Live
-                </h1>
-
                 <select
                     value={language}
                     onChange={e => setLanguage(e.target.value as Language)}
@@ -94,7 +82,7 @@ function App() {
                     <option value="it">IT</option>
                     <option value="es">ES</option>
                 </select>
-            </header>
+            </div>
 
             {/* ── Circle of Fifths ─────────────────────────────────────────── */}
             <div style={{
@@ -117,35 +105,71 @@ function App() {
                         selectedMinorKeys={selectedMinorKeys}
                         dominantSeventhMajorKeys={dominantSeventhMajorKeys}
                         language={language}
+                        accentColor="#555"
                     />
+
+                    {/* ── QR code – centred in the blank inner circle area ── */}
+                    {/* The SVG inner blank has radius 58 in a 400-unit viewBox = 29 % of container */}
+                    <div style={{
+                        position:  'absolute',
+                        left:      '50%',
+                        top:       '50%',
+                        transform: 'translate(-50%, -50%)',
+                        width:     '26%',
+                        height:    '26%',
+                        display:   'flex',
+                        alignItems:     'center',
+                        justifyContent: 'center',
+                        pointerEvents: 'none',
+                        zIndex: 2,
+                    }}>
+                        <QRCodeSVG
+                            value={QR_URL}
+                            level="Q"
+                            style={{ width: '100%', height: '100%' }}
+                            imageSettings={{
+                                src: `${import.meta.env.BASE_URL}favicon.ico`,
+                                height: 20,
+                                width:  20,
+                                excavate: true,
+                            }}
+                        />
+                    </div>
                 </div>
             </div>
 
             {/* ── Footer ───────────────────────────────────────────────────── */}
             <footer style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 10,
-                padding: '10px 16px 24px',
-                flexShrink: 0,
-                width: '100%',
-                boxSizing: 'border-box',
+                display:        'flex',
+                flexDirection:  'column',
+                alignItems:     'center',
+                gap:            8,
+                padding:        '8px 16px 28px',
+                flexShrink:     0,
+                width:          '100%',
+                boxSizing:      'border-box',
             }}>
-                {/* Status line */}
-                <p style={{
-                    margin: 0,
-                    fontSize: '0.8rem',
-                    color: statusColor,
-                    textAlign: 'center',
-                    minHeight: '1.3em',
-                    transition: 'color 0.3s',
-                }}>
-                    {isBusy
-                        ? <>{statusText} <LoadingDots /></>
-                        : statusText
-                    }
-                </p>
+                {/* Error message (only shown when status === 'error') */}
+                {status === 'error' && (
+                    <p style={{
+                        margin: 0,
+                        fontSize: '0.78rem',
+                        color: '#ff6b6b',
+                        textAlign: 'center',
+                    }}>
+                        {errorMessage ?? 'Error'}
+                    </p>
+                )}
+
+                {/* Loading indicator (only shown while busy) */}
+                {isBusy && (
+                    <p style={{ margin: 0, fontSize: '0.78rem', color: '#888', textAlign: 'center' }}>
+                        {status === 'requesting'
+                            ? <>Requesting microphone… <LoadingDots /></>
+                            : <>Loading model… <LoadingDots /></>
+                        }
+                    </p>
+                )}
 
                 {/* Start / Stop button */}
                 <button
@@ -156,21 +180,25 @@ function App() {
                         background:   isBusy   ? '#2a2a2a'
                                     : isActive ? '#b71c1c'
                                     :            '#1b5e20',
+                        animation:    isActive ? 'cof-btn-pulse 1.4s ease-in-out infinite' : 'none',
                         color:        '#fff',
                         border:       'none',
-                        borderRadius: 28,
-                        padding:      '13px 44px',
-                        fontSize:     '1rem',
-                        fontWeight:   600,
+                        borderRadius: '50%',
+                        width:        64,
+                        height:       64,
+                        fontSize:     '1.6rem',
+                        lineHeight:   1,
                         cursor:       isBusy ? 'default' : 'pointer',
-                        opacity:      isBusy ? 0.5 : 1,
+                        opacity:      isBusy ? 0.4 : 1,
                         transition:   'background 0.25s, opacity 0.25s',
-                        minWidth:     160,
-                        touchAction:  'manipulation', // removes 300 ms tap delay on mobile
+                        touchAction:  'manipulation',
                         WebkitTapHighlightColor: 'transparent',
+                        display:      'flex',
+                        alignItems:   'center',
+                        justifyContent: 'center',
                     }}
                 >
-                    {isBusy ? '…' : isActive ? 'Stop' : 'Start'}
+                    {isBusy ? '…' : isActive ? '⏹' : '▶'}
                 </button>
             </footer>
         </div>
@@ -182,15 +210,6 @@ function App() {
 function LoadingDots() {
     return (
         <span aria-hidden>
-            <style>{`
-                @keyframes cof-dot-blink {
-                    0%, 80%, 100% { opacity: 0.2; }
-                    40%           { opacity: 1;   }
-                }
-                .cof-dot { animation: cof-dot-blink 1.4s infinite ease-in-out; display: inline-block; }
-                .cof-dot:nth-child(2) { animation-delay: 0.2s; }
-                .cof-dot:nth-child(3) { animation-delay: 0.4s; }
-            `}</style>
             <span className="cof-dot">.</span>
             <span className="cof-dot">.</span>
             <span className="cof-dot">.</span>
