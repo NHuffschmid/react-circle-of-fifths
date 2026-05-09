@@ -24,13 +24,21 @@ const WINDOW_SAMPLES = BP_SAMPLE_RATE * WINDOW_SECONDS; // 44 100
 const HOP_SIZE = 256;
 
 /**
- * Number of trailing output frames to average when deciding which notes are
- * "currently active".  ~400 ms worth of audio.
+ * Number of trailing output frames to scan for active notes (~1 second).
+ * A note must appear above FRAME_THRESHOLD in at least MIN_FRAME_COUNT frames
+ * within this window to be considered active.
  */
-const ACTIVE_FRAMES = Math.round((0.4 * BP_SAMPLE_RATE) / HOP_SIZE); // ≈ 34
+const ACTIVE_FRAMES = Math.round((1.0 * BP_SAMPLE_RATE) / HOP_SIZE); // ≈ 86
 
-/** Per-note frame-probability threshold above which a note is considered active. */
-const FRAME_THRESHOLD = 0.5;
+/** Per-note frame-probability threshold to count a frame as "note present". */
+const FRAME_THRESHOLD = 0.30;
+
+/**
+ * Minimum number of frames (within the ACTIVE_FRAMES window) that must exceed
+ * FRAME_THRESHOLD before a note is considered active.
+ * Filters single-frame artifacts while still catching short note presses.
+ */
+const MIN_FRAME_COUNT = 2;
 
 /** Interval (ms) between successive inference runs. */
 const INFERENCE_INTERVAL_MS = 350;
@@ -90,6 +98,7 @@ export function useBasicPitchDetection(): PitchDetectionResult {
     const intervalRef   = useRef<ReturnType<typeof setInterval> | null>(null);
     const inferRunRef   = useRef(false);            // guard against overlapping inferences
     const isActiveRef   = useRef(false);            // guard against double-start
+    const logCountRef   = useRef(0);                // throttle mic-level logs
 
     // ── stop ─────────────────────────────────────────────────────────────────
 
@@ -149,6 +158,7 @@ export function useBasicPitchDetection(): PitchDetectionResult {
             audioCtxRef.current = ctx;
 
             const nativeSR = ctx.sampleRate;
+            console.log(`[PitchDetection] AudioContext sample rate: ${nativeSR} Hz`);
             const source   = ctx.createMediaStreamSource(stream);
             const processor = ctx.createScriptProcessor(SCRIPT_BUFFER_SIZE, 1, 1);
             processorRef.current = processor;
@@ -163,6 +173,19 @@ export function useBasicPitchDetection(): PitchDetectionResult {
                 for (let i = 0; i < samples.length; i++) {
                     ringBufRef.current[writeIdxRef.current % WINDOW_SAMPLES] = samples[i];
                     writeIdxRef.current++;
+                }
+                // Log mic RMS every ~2 seconds to verify audio capture
+                logCountRef.current++;
+                if (logCountRef.current % 43 === 0) { // ~2 s at 48 kHz / 4096 buffer
+                    let sumSq = 0;
+                    for (let i = 0; i < raw.length; i++) sumSq += raw[i] * raw[i];
+                    const rms = Math.sqrt(sumSq / raw.length);
+                    const filled = Math.min(writeIdxRef.current, WINDOW_SAMPLES);
+                    console.log(
+                        `[PitchDetection] Mic RMS: ${rms.toFixed(4)}` +
+                        ` | buffer filled: ${filled}/${WINDOW_SAMPLES} samples` +
+                        ` (${((filled / WINDOW_SAMPLES) * 100).toFixed(0)}%)`
+                    );
                 }
             };
 
@@ -180,6 +203,15 @@ export function useBasicPitchDetection(): PitchDetectionResult {
             intervalRef.current = setInterval(async () => {
                 if (inferRunRef.current || !audioCtxRef.current || !basicPitchRef.current) return;
                 inferRunRef.current = true;
+                const t0 = performance.now();
+                const samplesWritten = writeIdxRef.current;
+                // How many samples are real audio vs. initial zeros
+                const realSamples = Math.min(samplesWritten, WINDOW_SAMPLES);
+                console.log(
+                    `[PitchDetection] Inference start | audio in buffer: ` +
+                    `${realSamples}/${WINDOW_SAMPLES} samples ` +
+                    `(${((realSamples / WINDOW_SAMPLES) * 100).toFixed(0)}%)`
+                );
                 try {
                     // Reconstruct ring buffer in chronological order
                     const snapshot   = new Float32Array(WINDOW_SAMPLES);
@@ -202,26 +234,40 @@ export function useBasicPitchDetection(): PitchDetectionResult {
                         () => {}, // suppress progress callback
                     );
 
-                    if (frames.length === 0) return;
+                    const inferMs = (performance.now() - t0).toFixed(0);
+                    if (frames.length === 0) {
+                        console.log(`[PitchDetection] Inference done in ${inferMs} ms | 0 frames returned`);
+                        return;
+                    }
 
-                    // Average the last ACTIVE_FRAMES and threshold per note
+                    // Count frames above threshold per note within the last ACTIVE_FRAMES
+                    // (note must appear in >= MIN_FRAME_COUNT frames to be considered active)
                     const fromFrame   = Math.max(0, frames.length - ACTIVE_FRAMES);
-                    const frameCount  = frames.length - fromFrame;
                     const activeNotes = new Set<number>();
+                    let maxProb = 0;
 
                     for (let noteIdx = 0; noteIdx < 88; noteIdx++) {
-                        let sum = 0;
+                        let count = 0;
                         for (let fi = fromFrame; fi < frames.length; fi++) {
-                            sum += frames[fi][noteIdx] ?? 0;
+                            const p = frames[fi][noteIdx] ?? 0;
+                            if (p > maxProb) maxProb = p;
+                            if (p >= FRAME_THRESHOLD) count++;
                         }
-                        if (sum / frameCount >= FRAME_THRESHOLD) {
+                        if (count >= MIN_FRAME_COUNT) {
                             activeNotes.add(MIDI_OFFSET + noteIdx);
                         }
                     }
 
+                    console.log(
+                        `[PitchDetection] Inference done in ${inferMs} ms` +
+                        ` | frames: ${frames.length} (eval: ${fromFrame}–${frames.length})` +
+                        ` | maxProb: ${maxProb.toFixed(3)}` +
+                        ` | active MIDI notes: [${[...activeNotes].join(', ')}]`
+                    );
+
                     setPressedNotes(activeNotes);
-                } catch {
-                    // Inference errors are non-fatal – skip this cycle silently.
+                } catch (err) {
+                    console.error('[PitchDetection] Inference error:', err);
                 } finally {
                     inferRunRef.current = false;
                 }
