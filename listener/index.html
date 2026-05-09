@@ -4,6 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Circle of Fifths – Live</title>
+    <!-- Set lang before React mounts so Chrome won't offer to translate the page -->
+    <script>
+      (function () {
+        var s = (navigator.language || '').slice(0, 2).toLowerCase();
+        var supported = ['de', 'en', 'fr', 'it', 'es'];
+        document.documentElement.lang = supported.indexOf(s) >= 0 ? s : 'en';
+      })();
+    </script>
     <style>
       *, *::before, *::after { box-sizing: border-box; }
       html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }

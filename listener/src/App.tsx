@@ -175,9 +175,15 @@ function App() {
                                 justifyContent: 'center',
                             }}
                         >
-                            {/* \uFE0E (VS15) forces text rendering instead of colour emoji
-                                on Android, preventing the blue-square emoji background */}
-                            {isBusy ? '\u2026' : isActive ? '\u23F9\uFE0E' : '\u25B6\uFE0E'}
+                            {isBusy
+                                // Animated dots – plain text, no emoji
+                                ? <><span className="cof-dot">&#9679;</span><span className="cof-dot">&#9679;</span><span className="cof-dot">&#9679;</span></>
+                                : isActive
+                                // Stop icon: filled square via CSS
+                                ? <span style={{ display: 'block', width: 36, height: 36, background: '#fff', borderRadius: 4 }} />
+                                // Play icon: right-pointing triangle via CSS borders
+                                : <span style={{ display: 'block', width: 0, height: 0, borderTop: '22px solid transparent', borderBottom: '22px solid transparent', borderLeft: '36px solid #fff', marginLeft: 6 }} />
+                            }
                         </button>
                     </div>
                 </div>
