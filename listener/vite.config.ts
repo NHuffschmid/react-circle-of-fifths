@@ -18,14 +18,4 @@ export default defineConfig({
       'react-dom': reactDomPath,
     },
   },
-  optimizeDeps: {
-    // Pre-bundle TF.js CJS modules to avoid Vite ESM interop issues at runtime.
-    include: [
-      '@spotify/basic-pitch',
-      '@tensorflow/tfjs',
-      '@tensorflow/tfjs-core',
-      '@tensorflow/tfjs-backend-webgl',
-      '@tensorflow/tfjs-backend-cpu',
-    ],
-  },
 });
