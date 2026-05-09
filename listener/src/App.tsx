@@ -8,12 +8,19 @@ import { usePitchDetection } from './pitchDetection';
 
 type Language = 'de' | 'en' | 'fr' | 'it' | 'es';
 
+const SUPPORTED_LANGUAGES: Language[] = ['de', 'en', 'fr', 'it', 'es'];
+
+function detectBrowserLanguage(): Language {
+    const lang = (navigator.language ?? '').slice(0, 2).toLowerCase() as Language;
+    return SUPPORTED_LANGUAGES.includes(lang) ? lang : 'en';
+}
+
 const QR_URL = 'https://nhuffschmid.github.io/react-circle-of-fifths/';
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
 function App() {
-    const [language, setLanguage] = useState<Language>('en');
+    const [language, setLanguage] = useState<Language>(detectBrowserLanguage);
 
     const { status, errorMessage, pressedNotes, start, stop } = usePitchDetection();
     const { selectedMajorKeys, selectedMinorKeys, dominantSeventhMajorKeys } =
