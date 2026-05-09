@@ -107,33 +107,46 @@ function App() {
                         language={language}
                         accentColor="#555"
                     />
-
-                    {/* ── QR code – centred in the blank inner circle area ── */}
-                    {/* The SVG inner blank has radius 58 in a 400-unit viewBox = 29 % of container */}
+                    {/* Start/Stop Button in the center */}
                     <div style={{
                         position:  'absolute',
                         left:      '50%',
                         top:       '50%',
                         transform: 'translate(-50%, -50%)',
-                        width:     '26%',
-                        height:    '26%',
+                        zIndex:    3,
+                        pointerEvents: 'auto',
                         display:   'flex',
-                        alignItems:     'center',
+                        alignItems: 'center',
                         justifyContent: 'center',
-                        pointerEvents: 'none',
-                        zIndex: 2,
                     }}>
-                        <QRCodeSVG
-                            value={QR_URL}
-                            level="Q"
-                            style={{ width: '100%', height: '100%' }}
-                            imageSettings={{
-                                src: `${import.meta.env.BASE_URL}favicon.ico`,
-                                height: 20,
-                                width:  20,
-                                excavate: true,
+                        <button
+                            onClick={handleToggle}
+                            disabled={isBusy}
+                            aria-label={isActive ? 'Stop listening' : 'Start listening'}
+                            style={{
+                                background:   isBusy   ? '#2a2a2a'
+                                            : isActive ? '#b71c1c'
+                                            :            '#1b5e20',
+                                animation:    isActive ? 'cof-btn-pulse 1.4s ease-in-out infinite' : 'none',
+                                color:        '#fff',
+                                border:       'none',
+                                borderRadius: '50%',
+                                width:        128,
+                                height:       128,
+                                fontSize:     '3.2rem',
+                                lineHeight:   1,
+                                cursor:       isBusy ? 'default' : 'pointer',
+                                opacity:      isBusy ? 0.4 : 1,
+                                transition:   'background 0.25s, opacity 0.25s',
+                                touchAction:  'manipulation',
+                                WebkitTapHighlightColor: 'transparent',
+                                display:      'flex',
+                                alignItems:   'center',
+                                justifyContent: 'center',
                             }}
-                        />
+                        >
+                            {isBusy ? '…' : isActive ? '⏹' : '▶'}
+                        </button>
                     </div>
                 </div>
             </div>
@@ -161,45 +174,34 @@ function App() {
                     </p>
                 )}
 
-                {/* Loading indicator (only shown while busy) */}
-                {isBusy && (
+                {/* Loading indicator (nur für Modell-Laden, nicht für Requesting microphone) */}
+                {isBusy && status === 'loading' && (
                     <p style={{ margin: 0, fontSize: '0.78rem', color: '#888', textAlign: 'center' }}>
-                        {status === 'requesting'
-                            ? <>Requesting microphone… <LoadingDots /></>
-                            : <>Loading model… <LoadingDots /></>
-                        }
+                        <>Loading model… <LoadingDots /></>
                     </p>
                 )}
 
-                {/* Start / Stop button */}
-                <button
-                    onClick={handleToggle}
-                    disabled={isBusy}
-                    aria-label={isActive ? 'Stop listening' : 'Start listening'}
-                    style={{
-                        background:   isBusy   ? '#2a2a2a'
-                                    : isActive ? '#b71c1c'
-                                    :            '#1b5e20',
-                        animation:    isActive ? 'cof-btn-pulse 1.4s ease-in-out infinite' : 'none',
-                        color:        '#fff',
-                        border:       'none',
-                        borderRadius: '50%',
-                        width:        64,
-                        height:       64,
-                        fontSize:     '1.6rem',
-                        lineHeight:   1,
-                        cursor:       isBusy ? 'default' : 'pointer',
-                        opacity:      isBusy ? 0.4 : 1,
-                        transition:   'background 0.25s, opacity 0.25s',
-                        touchAction:  'manipulation',
-                        WebkitTapHighlightColor: 'transparent',
-                        display:      'flex',
-                        alignItems:   'center',
-                        justifyContent: 'center',
-                    }}
-                >
-                    {isBusy ? '…' : isActive ? '⏹' : '▶'}
-                </button>
+                {/* QR code – jetzt im Footer, zentriert, doppelt so groß */}
+                <div style={{
+                    marginTop: 12,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                }}>
+                    <QRCodeSVG
+                        value={QR_URL}
+                        level="Q"
+                        style={{ width: 128, height: 128 }}
+                        bgColor="#111"
+                        fgColor="#fff"
+                        imageSettings={{
+                            src: `${import.meta.env.BASE_URL}favicon.ico`,
+                            height: 40,
+                            width:  40,
+                            excavate: true,
+                        }}
+                    />
+                </div>
             </footer>
         </div>
     );
