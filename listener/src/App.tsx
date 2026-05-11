@@ -6,9 +6,9 @@ import { usePitchDetection } from './pitchDetection';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-type Language = 'de' | 'en' | 'fr' | 'it' | 'es';
+type Language = 'de' | 'en' | 'fr' | 'it' | 'es' | 'pt';
 
-const SUPPORTED_LANGUAGES: Language[] = ['de', 'en', 'fr', 'it', 'es'];
+const SUPPORTED_LANGUAGES: Language[] = ['de', 'en', 'fr', 'it', 'es', 'pt'];
 
 function detectBrowserLanguage(): Language {
     const lang = (navigator.language ?? '').slice(0, 2).toLowerCase() as Language;
@@ -26,6 +26,7 @@ const MIC_ERRORS: Record<string, Record<Language, { title: string; hint: string 
         fr: { title: 'Accès au microphone refusé', hint: 'Veuillez autoriser l’accès au microphone dans les paramètres du navigateur.' },
         it: { title: 'Accesso al microfono negato', hint: 'Consenti l’accesso al microfono nelle impostazioni del browser e riprova.' },
         es: { title: 'Acceso al micrófono denegado', hint: 'Permite el acceso al micrófono en los ajustes del navegador e inténtalo de nuevo.' },
+        pt: { title: 'Acesso ao microfone negado', hint: 'Permita o acesso ao microfone nas configurações do navegador e tente novamente.' },
     },
     MICROPHONE_NOT_FOUND: {
         de: { title: 'Kein Mikrofon gefunden', hint: 'Stelle sicher, dass ein Mikrofon angeschlossen oder aktiviert ist.' },
@@ -33,6 +34,7 @@ const MIC_ERRORS: Record<string, Record<Language, { title: string; hint: string 
         fr: { title: 'Aucun microphone trouvé', hint: 'Vérifiez qu’un microphone est connecté et activé.' },
         it: { title: 'Nessun microfono trovato', hint: 'Assicurati che un microfono sia collegato e abilitato.' },
         es: { title: 'No se encontró micrófono', hint: 'Asegúrate de que haya un micrófono conectado y habilitado.' },
+        pt: { title: 'Nenhum microfone encontrado', hint: 'Certifique-se de que um microfone está conectado e ativado.' },
     },
     MICROPHONE_IN_USE: {
         de: { title: 'Mikrofon wird verwendet', hint: 'Das Mikrofon wird von einer anderen App genutzt. Schließe sie und versuche es erneut.' },
@@ -40,6 +42,7 @@ const MIC_ERRORS: Record<string, Record<Language, { title: string; hint: string 
         fr: { title: 'Microphone déjà utilisé', hint: 'Une autre application utilise le microphone. Fermez-la et réessayez.' },
         it: { title: 'Microfono in uso',        hint: 'Un’altra app sta usando il microfono. Chiudila e riprova.' },
         es: { title: 'Micrófono en uso',        hint: 'Otra aplicación está usando el micrófono. Ciérrala e inténtalo de nuevo.' },
+        pt: { title: 'Microfone em uso',         hint: 'Outro aplicativo está usando o microfone. Feche-o e tente novamente.' },
     },
 };
 
@@ -160,6 +163,7 @@ function App() {
                     <option value="fr">FR</option>
                     <option value="it">IT</option>
                     <option value="es">ES</option>
+                    <option value="pt">PT</option>
                 </select>
             </div>
 
