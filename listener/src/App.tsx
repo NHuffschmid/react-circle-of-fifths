@@ -3,6 +3,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { CircleOfFifths } from '../../src';
 import { useCircleOfFifthsDetection } from '../../src/useCircleOfFifthsDetection';
 import { usePitchDetection } from './pitchDetection';
+import './App.css';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -110,53 +111,15 @@ function App() {
     }, [isActive, isBusy, start, stop]);
 
     return (
-        <div style={{
-            width: '100vw',
-            height: '100dvh',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            backgroundColor: '#111',
-            color: '#fff',
-            fontFamily: 'system-ui, -apple-system, sans-serif',
-            overflow: 'hidden',
-            userSelect: 'none',
-        }}>
-            <style>{`
-                @keyframes cof-btn-blink {
-                    0%, 100% { opacity: 1; }
-                    50%      { opacity: 0.1; }
-                }
-                @keyframes cof-dot-blink {
-                    0%, 80%, 100% { opacity: 0.2; }
-                    40%           { opacity: 1;   }
-                }
-                .cof-dot { animation: cof-dot-blink 1.4s infinite ease-in-out; display: inline-block; }
-                .cof-dot:nth-child(2) { animation-delay: 0.2s; }
-                .cof-dot:nth-child(3) { animation-delay: 0.4s; }
-            `}</style>
+        <div className="app-root">
 
             {/* ── Language selector (top-right overlay) ─────────────────── */}
-            <div style={{
-                position: 'absolute',
-                top: 12,
-                right: 16,
-                zIndex: 10,
-            }}>
+            <div className="lang-selector">
                 <select
                     value={language}
                     onChange={e => setLanguage(e.target.value as Language)}
                     aria-label="Note name language"
-                    style={{
-                        background: '#1e1e1e',
-                        color: '#ccc',
-                        border: '1px solid #333',
-                        borderRadius: 6,
-                        padding: '4px 8px',
-                        fontSize: '0.85rem',
-                        cursor: 'pointer',
-                        outline: 'none',
-                    }}
+                    className="lang-select"
                 >
                     <option value="en">EN</option>
                     <option value="de">DE</option>
@@ -168,22 +131,8 @@ function App() {
             </div>
 
             {/* ── Circle of Fifths ─────────────────────────────────────────── */}
-            <div style={{
-                flex: 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: '100%',
-                minHeight: 0,
-                padding: 0,
-                boxSizing: 'border-box',
-            }}>
-                <div ref={circleContainerRef} style={{
-                    width:       '100%',
-                    aspectRatio: '1',
-                    maxHeight:   '100%',
-                    position:    'relative',
-                }}>
+            <div className="circle-area">
+                <div ref={circleContainerRef} className="circle-container">
                     <CircleOfFifths
                         selectedMajorKeys={selectedMajorKeys}
                         selectedMinorKeys={selectedMinorKeys}
@@ -192,41 +141,16 @@ function App() {
                         accentColor="#555"
                     />
                     {/* Start/Stop Button in the center */}
-                    <div style={{
-                        position:  'absolute',
-                        left:      '50%',
-                        top:       '50%',
-                        transform: 'translate(-50%, -50%)',
-                        zIndex:    3,
-                        pointerEvents: 'auto',
-                        display:   'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                    }}>
+                    <div className="btn-overlay">
                         <button
                             onClick={handleToggle}
                             disabled={isBusy}
                             aria-label={isActive ? 'Stop listening' : 'Start listening'}
+                            className={`cof-btn ${isBusy ? 'cof-btn--busy' : isActive ? 'cof-btn--active' : 'cof-btn--idle'}`}
                             style={{
-                                background:   isBusy   ? '#2a2a2a'
-                                            : isActive ? '#b71c1c'
-                                            :            '#1b5e20',
-                                animation:    isActive ? 'cof-btn-blink 1s ease-in-out infinite' : 'none',
-                                color:        '#fff',
-                                border:       'none',
-                                borderRadius: '50%',
-                                width:        btnSize,
-                                height:       btnSize,
-                                fontSize:     Math.round(btnSize * 0.4),
-                                lineHeight:   1,
-                                cursor:       isBusy ? 'default' : 'pointer',
-                                opacity:      isBusy ? 0.4 : 1,
-                                transition:   'background 0.25s, opacity 0.25s',
-                                touchAction:  'manipulation',
-                                WebkitTapHighlightColor: 'transparent',
-                                display:      'flex',
-                                alignItems:   'center',
-                                justifyContent: 'center',
+                                width:    btnSize,
+                                height:   btnSize,
+                                fontSize: Math.round(btnSize * 0.4),
                             }}
                         >
                             {isBusy
@@ -234,9 +158,9 @@ function App() {
                                 ? <><span className="cof-dot">&#9679;</span><span className="cof-dot">&#9679;</span><span className="cof-dot">&#9679;</span></>
                                 : isActive
                                 // Stop icon: filled square via CSS
-                                ? <span style={{ display: 'block', width: Math.round(btnSize * 0.28), height: Math.round(btnSize * 0.28), background: '#fff', borderRadius: 4 }} />
+                                ? <span className="btn-icon-stop" style={{ width: Math.round(btnSize * 0.28), height: Math.round(btnSize * 0.28) }} />
                                 // Play icon: right-pointing triangle via CSS borders
-                                : <span style={{ display: 'block', width: 0, height: 0, borderTop: `${Math.round(btnSize * 0.17)}px solid transparent`, borderBottom: `${Math.round(btnSize * 0.17)}px solid transparent`, borderLeft: `${Math.round(btnSize * 0.28)}px solid #fff`, marginLeft: Math.round(btnSize * 0.05) }} />
+                                : <span className="btn-icon-play" style={{ borderTop: `${Math.round(btnSize * 0.17)}px solid transparent`, borderBottom: `${Math.round(btnSize * 0.17)}px solid transparent`, borderLeft: `${Math.round(btnSize * 0.28)}px solid #fff`, marginLeft: Math.round(btnSize * 0.05) }} />
                             }
                         </button>
                     </div>
@@ -244,26 +168,17 @@ function App() {
             </div>
 
             {/* ── Footer ───────────────────────────────────────────────────── */}
-            <footer style={{
-                display:        'flex',
-                flexDirection:  'column',
-                alignItems:     'center',
-                gap:            8,
-                padding:        '8px 16px 12px',
-                flexShrink:     0,
-                width:          '100%',
-                boxSizing:      'border-box',
-            }}>
+            <footer className="app-footer">
                 {/* Error message (only shown when status === 'error') */}
                 {status === 'error' && (() => {
                     const localised = getMicError(errorMessage, language);
                     return (
-                        <div style={{ margin: 0, textAlign: 'center' }}>
-                            <p style={{ margin: '0 0 4px', fontSize: '0.82rem', color: '#ff6b6b', fontWeight: 600 }}>
+                        <div className="error-box">
+                            <p className="error-title">
                                 {localised?.title ?? errorMessage ?? 'Error'}
                             </p>
                             {localised && (
-                                <p style={{ margin: 0, fontSize: '0.75rem', color: '#ff9999', maxWidth: 280 }}>
+                                <p className="error-hint">
                                     {localised.hint}
                                 </p>
                             )}
@@ -273,18 +188,13 @@ function App() {
 
                 {/* Loading indicator (nur für Modell-Laden, nicht für Requesting microphone) */}
                 {isBusy && status === 'loading' && (
-                    <p style={{ margin: 0, fontSize: '0.78rem', color: '#888', textAlign: 'center' }}>
+                    <p className="loading-text">
                         <>Loading model… <LoadingDots /></>
                     </p>
                 )}
 
                 {/* QR code – centered between circle and impressum link */}
-                <div style={{
-                    marginTop: 12,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                }}>
+                <div className="qr-wrapper">
                     <QRCodeSVG
                         value={QR_URL}
                         level="Q"
@@ -305,12 +215,7 @@ function App() {
                     href={`${import.meta.env.BASE_URL}impressum/index.html`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={{
-                        color: '#888',
-                        fontSize: '0.8rem',
-                        textDecoration: 'underline',
-                        marginTop: 6,
-                    }}
+                    className="impressum-link"
                 >
                     Impressum / Legal Notice
                 </a>
