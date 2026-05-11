@@ -226,7 +226,7 @@ function App() {
                 flexDirection:  'column',
                 alignItems:     'center',
                 gap:            8,
-                padding:        '8px 16px 28px',
+                padding:        '8px 16px 12px',
                 flexShrink:     0,
                 width:          '100%',
                 boxSizing:      'border-box',
@@ -255,7 +255,7 @@ function App() {
                     </p>
                 )}
 
-                {/* QR code – jetzt im Footer, zentriert, doppelt so groß */}
+                {/* QR code – centered between circle and impressum link */}
                 <div style={{
                     marginTop: 12,
                     display: 'flex',
@@ -276,6 +276,21 @@ function App() {
                         }}
                     />
                 </div>
+
+                {/* Impressum link */}
+                <a
+                    href={`${import.meta.env.BASE_URL}impressum/index.html`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                        color: '#888',
+                        fontSize: '0.8rem',
+                        textDecoration: 'underline',
+                        marginTop: 6,
+                    }}
+                >
+                    Impressum / Legal Notice
+                </a>
             </footer>
         </div>
     );
