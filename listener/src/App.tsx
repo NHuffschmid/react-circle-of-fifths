@@ -83,6 +83,24 @@ function App() {
         };
     }, [isActive]);
 
+    // Circle container size tracking – drives the adaptive button size
+    const circleContainerRef = useRef<HTMLDivElement>(null);
+    const [circleSize, setCircleSize] = useState(400);
+    useEffect(() => {
+        const el = circleContainerRef.current;
+        if (!el) return;
+        const ro = new ResizeObserver(entries => {
+            const { width, height } = entries[0].contentRect;
+            setCircleSize(Math.min(width, height));
+        });
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, []);
+
+    // Button diameter: fits within the innermost SVG circle
+    // (R_ACC_INNER = 58 in a 400-unit viewBox → 29 % of container; use 85 % of that)
+    const btnSize = Math.max(40, Math.round(circleSize * 0.246));
+
     const handleToggle = useCallback(() => {
         if (isActive)         stop();
         else if (!isBusy) void start();
@@ -102,9 +120,9 @@ function App() {
             userSelect: 'none',
         }}>
             <style>{`
-                @keyframes cof-btn-pulse {
-                    0%, 100% { background: #b71c1c; box-shadow: 0 0 0 0 rgba(183,28,28,0.7); }
-                    50%      { background: #e53935; box-shadow: 0 0 0 10px rgba(183,28,28,0); }
+                @keyframes cof-btn-blink {
+                    0%, 100% { opacity: 1; }
+                    50%      { opacity: 0.1; }
                 }
                 @keyframes cof-dot-blink {
                     0%, 80%, 100% { opacity: 0.2; }
@@ -153,13 +171,14 @@ function App() {
                 justifyContent: 'center',
                 width: '100%',
                 minHeight: 0,
-                padding: '8px',
+                padding: 0,
                 boxSizing: 'border-box',
             }}>
-                <div style={{
-                    width:    'min(88vw, 88vh, 520px)',
-                    height:   'min(88vw, 88vh, 520px)',
-                    position: 'relative',
+                <div ref={circleContainerRef} style={{
+                    width:       '100%',
+                    aspectRatio: '1',
+                    maxHeight:   '100%',
+                    position:    'relative',
                 }}>
                     <CircleOfFifths
                         selectedMajorKeys={selectedMajorKeys}
@@ -188,13 +207,13 @@ function App() {
                                 background:   isBusy   ? '#2a2a2a'
                                             : isActive ? '#b71c1c'
                                             :            '#1b5e20',
-                                animation:    isActive ? 'cof-btn-pulse 1.4s ease-in-out infinite' : 'none',
+                                animation:    isActive ? 'cof-btn-blink 1s ease-in-out infinite' : 'none',
                                 color:        '#fff',
                                 border:       'none',
                                 borderRadius: '50%',
-                                width:        128,
-                                height:       128,
-                                fontSize:     '3.2rem',
+                                width:        btnSize,
+                                height:       btnSize,
+                                fontSize:     Math.round(btnSize * 0.4),
                                 lineHeight:   1,
                                 cursor:       isBusy ? 'default' : 'pointer',
                                 opacity:      isBusy ? 0.4 : 1,
@@ -211,9 +230,9 @@ function App() {
                                 ? <><span className="cof-dot">&#9679;</span><span className="cof-dot">&#9679;</span><span className="cof-dot">&#9679;</span></>
                                 : isActive
                                 // Stop icon: filled square via CSS
-                                ? <span style={{ display: 'block', width: 36, height: 36, background: '#fff', borderRadius: 4 }} />
+                                ? <span style={{ display: 'block', width: Math.round(btnSize * 0.28), height: Math.round(btnSize * 0.28), background: '#fff', borderRadius: 4 }} />
                                 // Play icon: right-pointing triangle via CSS borders
-                                : <span style={{ display: 'block', width: 0, height: 0, borderTop: '22px solid transparent', borderBottom: '22px solid transparent', borderLeft: '36px solid #fff', marginLeft: 6 }} />
+                                : <span style={{ display: 'block', width: 0, height: 0, borderTop: `${Math.round(btnSize * 0.17)}px solid transparent`, borderBottom: `${Math.round(btnSize * 0.17)}px solid transparent`, borderLeft: `${Math.round(btnSize * 0.28)}px solid #fff`, marginLeft: Math.round(btnSize * 0.05) }} />
                             }
                         </button>
                     </div>
