@@ -30,9 +30,9 @@ score = (energy[note1] + energy[note2] + energy[note3]) / (3 × maxEnergy)
 
 A score ≥ 0.60 means the three chord notes together average at least 60 % of the strongest pitch class's energy. The highest-scoring template is selected. Harmonic overtone bleed (e.g. G's 3rd harmonic landing on D) cannot push a wrong chord above threshold because all three template notes must score together.
 
-### 5. Debounce
+### 5. Stability voting (sliding window)
 
-A chord must remain the best candidate for 2 consecutive ticks (~100 ms) before it is reported (note-on). Once reported it is held for at least 6 ticks (~300 ms) below threshold before being cleared (note-off). This prevents flicker on staccato playing while still responding quickly.
+The last 8 tick results (400 ms) are kept in a rolling window. A chord is activated or switched-to only when it wins at least 5 of those 8 ticks (~250 ms minimum latency). Piano attack transients that dominate for only 1–3 ticks therefore never trigger a key change, eliminating the momentary flicker that occurs when a chord is struck. Once active, the chord is cleared only when its own vote count in the window drops below 3 (~300–350 ms of silence).
 
 ### 6. Key display
 
@@ -86,8 +86,9 @@ The UI automatically detects the browser language and pre-selects it if it is on
 | `SMOOTHING_FRAMES` | 3 | Rolling average over this many 50 ms frames |
 | `MIN_PEAK_ENERGY` | 10 | Minimum peak energy before chord detection runs |
 | `CHORD_MIN_SCORE` | 0.60 | Minimum template match score (0–1) |
-| `CHORD_TICKS_ON` | 2 | Ticks required to activate a chord (~100 ms) |
-| `CHORD_TICKS_OFF` | 6 | Ticks below threshold before chord is cleared (~300 ms) |
+| `CANDIDATE_WINDOW_SIZE` | 8 | Number of recent ticks kept for stability voting (~400 ms) |
+| `CANDIDATE_MIN_WINS` | 5 | Votes required in the window to activate a chord (~250 ms) |
+| `CANDIDATE_DEACTIVATE_MIN` | 3 | Vote count below which the active chord is cleared |
 | `ANALYSIS_INTERVAL_MS` | 50 | Milliseconds between analysis ticks |
 
 ---

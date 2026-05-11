@@ -34,11 +34,24 @@ const ANALYSIS_INTERVAL_MS = 50;
  */
 const CHORD_MIN_SCORE = 0.60;
 
-/** Consecutive ticks a chord must be the best candidate before being reported (~100 ms). */
-const CHORD_TICKS_ON = 2;
+/**
+ * Sliding-window vote: number of recent ticks kept for stability voting.
+ * At 50 ms/tick this covers 400 ms of history.
+ */
+const CANDIDATE_WINDOW_SIZE = 8;
 
-/** Consecutive ticks below threshold before the active chord is cleared (~300 ms). */
-const CHORD_TICKS_OFF = 6;
+/**
+ * A chord is activated / switched-to when it wins at least this many ticks in the window.
+ * Minimum activation latency = CANDIDATE_MIN_WINS × 50 ms = 250 ms.
+ * A transient that lasts fewer than CANDIDATE_MIN_WINS ticks can never trigger activation.
+ */
+const CANDIDATE_MIN_WINS = 5;
+
+/**
+ * Active chord is cleared once its vote count in the window drops below this value.
+ * Equivalent to ~6–7 consecutive silent ticks ≈ 300–350 ms of silence.
+ */
+const CANDIDATE_DEACTIVATE_MIN = 3;
 
 // ── Chord templates ──────────────────────────────────────────────────────────
 
@@ -101,10 +114,8 @@ export function useChromaDetection(): PitchDetectionResult {
     const binsPerPcRef     = useRef<number[]>(new Array(12).fill(0));
     const chromaHistRef    = useRef<number[][]>([]);
     // Chord template matching state
-    const candidateIdxRef  = useRef(-1);  // index of current best candidate
-    const onTickRef        = useRef(0);   // consecutive ticks candidate has been above threshold
+    const recentCandidatesRef = useRef<number[]>([]); // sliding-window vote buffer (−1 = no chord)
     const activeChordRef   = useRef(-1);  // index of currently reported chord (−1 = none)
-    const offTickRef       = useRef(0);   // consecutive ticks active chord has been below threshold
     const logTickRef       = useRef(0);
 
     // ── stop ─────────────────────────────────────────────────────────────────
@@ -118,12 +129,10 @@ export function useChromaDetection(): PitchDetectionResult {
         streamRef.current   = null;
         audioCtxRef.current = null;
         analyserRef.current = null;
-        isActiveRef.current     = false;
-        chromaHistRef.current   = [];
-        candidateIdxRef.current = -1;
-        onTickRef.current       = 0;
-        activeChordRef.current  = -1;
-        offTickRef.current      = 0;
+        isActiveRef.current       = false;
+        chromaHistRef.current     = [];
+        recentCandidatesRef.current = [];
+        activeChordRef.current    = -1;
 
         setPressedNotes(new Set());
         setStatus('idle');
@@ -236,43 +245,54 @@ export function useChromaDetection(): PitchDetectionResult {
                     if (bestScore < CHORD_MIN_SCORE) bestIdx = -1;
                 }
 
-                // ── Debounce (note-on / note-off) ────────────────────────────
-                if (bestIdx !== -1) {
-                    offTickRef.current = 0;
-                    if (bestIdx === candidateIdxRef.current) {
-                        onTickRef.current++;
-                    } else {
-                        candidateIdxRef.current = bestIdx;
-                        onTickRef.current = 1;
-                    }
-                } else {
-                    candidateIdxRef.current = -1;
-                    onTickRef.current = 0;
-                    offTickRef.current++;
+                // ── Sliding-window stability vote ─────────────────────────────
+                // Push this tick's best candidate into the rolling window.
+                // A chord is only activated/switched-to when it wins the majority
+                // of recent ticks, which filters out sub-200 ms transients while
+                // keeping minimum activation latency at CANDIDATE_MIN_WINS × 50 ms.
+                recentCandidatesRef.current.push(bestIdx);
+                if (recentCandidatesRef.current.length > CANDIDATE_WINDOW_SIZE) {
+                    recentCandidatesRef.current.shift();
                 }
 
-                // ── Activate ─────────────────────────────────────────────────
-                if (
-                    onTickRef.current >= CHORD_TICKS_ON &&
-                    candidateIdxRef.current !== -1 &&
-                    candidateIdxRef.current !== activeChordRef.current
-                ) {
-                    const tmpl = CHORD_TEMPLATES[candidateIdxRef.current];
-                    activeChordRef.current = candidateIdxRef.current;
-                    offTickRef.current = 0;
+                // Count votes for each chord index in the window (−1 excluded)
+                const voteCounts = new Map<number, number>();
+                for (const idx of recentCandidatesRef.current) {
+                    if (idx !== -1) voteCounts.set(idx, (voteCounts.get(idx) ?? 0) + 1);
+                }
+
+                // Find the dominant chord (most votes, must reach CANDIDATE_MIN_WINS)
+                let dominantIdx   = -1;
+                let dominantCount = 0;
+                for (const [idx, count] of voteCounts) {
+                    if (count > dominantCount) { dominantCount = count; dominantIdx = idx; }
+                }
+                if (dominantCount < CANDIDATE_MIN_WINS) dominantIdx = -1;
+
+                // ── Activate / switch ─────────────────────────────────────────
+                if (dominantIdx !== -1 && dominantIdx !== activeChordRef.current) {
+                    const tmpl = CHORD_TEMPLATES[dominantIdx];
+                    activeChordRef.current = dominantIdx;
                     setPressedNotes(new Set(tmpl.midiNotes));
                     console.log(
                         `[ChromaDetection] Chord: ${tmpl.label}` +
                         ` | score: ${bestScore.toFixed(2)}` +
-                        ` | maxEnergy: ${maxEnergy.toFixed(1)}`
+                        ` | maxEnergy: ${maxEnergy.toFixed(1)}` +
+                        ` | votes: ${dominantCount}/${recentCandidatesRef.current.length}`
                     );
                 }
 
-                // ── Deactivate ───────────────────────────────────────────────
-                if (activeChordRef.current !== -1 && offTickRef.current >= CHORD_TICKS_OFF) {
-                    activeChordRef.current = -1;
-                    setPressedNotes(new Set());
-                    console.log('[ChromaDetection] Chord cleared');
+                // ── Deactivate ────────────────────────────────────────────────
+                // Clear the active chord only when no chord is dominant AND the
+                // active chord's own vote count has fallen below the deactivation
+                // threshold (i.e. the musician has released the keys long enough).
+                if (activeChordRef.current !== -1 && dominantIdx === -1) {
+                    const activeCount = voteCounts.get(activeChordRef.current) ?? 0;
+                    if (activeCount < CANDIDATE_DEACTIVATE_MIN) {
+                        activeChordRef.current = -1;
+                        setPressedNotes(new Set());
+                        console.log('[ChromaDetection] Chord cleared');
+                    }
                 }
 
                 // ── Periodic debug log (every ~1 s) ──────────────────────────
