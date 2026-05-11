@@ -3,6 +3,13 @@ import { QRCodeSVG } from 'qrcode.react';
 import { CircleOfFifths } from '../../src';
 import { useCircleOfFifthsDetection } from '../../src/useCircleOfFifthsDetection';
 import { usePitchDetection } from './pitchDetection';
+import {
+    useTuningCalibration,
+    readA4Hz,
+    writeA4Hz,
+    resetA4Hz,
+    DEFAULT_A4_HZ,
+} from './pitchDetection/useTuningCalibration';
 import './App.css';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -52,6 +59,73 @@ function getMicError(code: string | null, lang: Language) {
     return MIC_ERRORS[code]?.[lang] ?? null;
 }
 
+// ── Calibration localisation ──────────────────────────────────────────────────
+
+const CAL_LABELS: Record<Language, {
+    tooltip:     string;
+    title:       string;
+    instruction: string;
+    done:        (hz: number) => string;
+    error:       string;
+    cancel:      string;
+    reset:       string;
+}> = {
+    de: {
+        tooltip:     'Kalibrierung',
+        title:       'Kammerton kalibrieren',
+        instruction: 'Schlag den Kammerton A an und halte ihn.',
+        done:        (hz) => `Kalibriert: ${hz.toFixed(1)} Hz`,
+        error:       'Kein klarer Ton erkannt. Bitte versuche es erneut.',
+        cancel:      'Abbrechen',
+        reset:       'Zurücksetzen (440 Hz)',
+    },
+    en: {
+        tooltip:     'Tuning calibration',
+        title:       'Calibrate concert pitch',
+        instruction: 'Play concert A and hold it.',
+        done:        (hz) => `Calibrated: ${hz.toFixed(1)} Hz`,
+        error:       'No clear pitch detected. Please try again.',
+        cancel:      'Cancel',
+        reset:       'Reset to 440 Hz',
+    },
+    fr: {
+        tooltip:     'Calibration',
+        title:       'Calibrer le la de concert',
+        instruction: 'Jouez le la de concert et tenez-le.',
+        done:        (hz) => `Calibré : ${hz.toFixed(1)} Hz`,
+        error:       'Aucune hauteur claire détectée. Veuillez réessayer.',
+        cancel:      'Annuler',
+        reset:       'Réinitialiser (440 Hz)',
+    },
+    it: {
+        tooltip:     'Calibrazione',
+        title:       'Calibra il diapason',
+        instruction: 'Suona il la di concerto e tienilo.',
+        done:        (hz) => `Calibrato: ${hz.toFixed(1)} Hz`,
+        error:       'Nessuna nota chiara rilevata. Riprova.',
+        cancel:      'Annulla',
+        reset:       'Ripristina (440 Hz)',
+    },
+    es: {
+        tooltip:     'Calibración',
+        title:       'Calibrar el diapasón',
+        instruction: 'Toca el la de concierto y mantenlo.',
+        done:        (hz) => `Calibrado: ${hz.toFixed(1)} Hz`,
+        error:       'No se detectó un tono claro. Inténtalo de nuevo.',
+        cancel:      'Cancelar',
+        reset:       'Restablecer (440 Hz)',
+    },
+    pt: {
+        tooltip:     'Calibração',
+        title:       'Calibrar o diapasão',
+        instruction: 'Toque o lá de concerto e segure-o.',
+        done:        (hz) => `Calibrado: ${hz.toFixed(1)} Hz`,
+        error:       'Nenhum tom claro detectado. Tente novamente.',
+        cancel:      'Cancelar',
+        reset:       'Redefinir (440 Hz)',
+    },
+};
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 function App() {
@@ -68,6 +142,31 @@ function App() {
 
     const isActive = status === 'active';
     const isBusy   = status === 'requesting' || status === 'loading';
+
+    // ── Concert-A calibration ─────────────────────────────────────────────────
+    const [a4Hz, setA4Hz] = useState<number>(readA4Hz);
+    const cal = useTuningCalibration();
+
+    // When calibration succeeds, persist and update the reference frequency
+    useEffect(() => {
+        if (cal.status === 'done' && cal.measuredHz !== null) {
+            writeA4Hz(cal.measuredHz);
+            setA4Hz(cal.measuredHz);
+        }
+    }, [cal.status, cal.measuredHz]);
+
+    const isCalibrationOpen =
+        cal.status === 'listening' || cal.status === 'done' || cal.status === 'error';
+
+    const handleTuneForkClick = useCallback(() => {
+        if (isCalibrationOpen) {
+            cal.cancel();
+        } else {
+            // Stop the main listener before calibration
+            if (isActive) stop();
+            void cal.start();
+        }
+    }, [isCalibrationOpen, cal, isActive, stop]);
 
     // Screen Wake Lock – keep the display on while the listener is running
     const wakeLockRef = useRef<WakeLockSentinel | null>(null);
@@ -107,11 +206,83 @@ function App() {
 
     const handleToggle = useCallback(() => {
         if (isActive)         stop();
-        else if (!isBusy) void start();
-    }, [isActive, isBusy, start, stop]);
+        else if (!isBusy) void start(a4Hz);
+    }, [isActive, isBusy, start, stop, a4Hz]);
 
     return (
         <div className="app-root">
+
+            {/* ── Tuning fork button (top-left) ─────────────────────────── */}
+            <div className="tune-btn-wrap">
+                <button
+                    className={`tune-btn${a4Hz !== DEFAULT_A4_HZ ? ' tune-btn--calibrated' : ''}`}
+                    onClick={handleTuneForkClick}
+                    aria-label={CAL_LABELS[language].tooltip}
+                    title={CAL_LABELS[language].tooltip}
+                >
+                    <TuningForkIcon />
+                    {a4Hz !== DEFAULT_A4_HZ && (
+                        <span className="tune-btn__badge">{a4Hz.toFixed(0)}</span>
+                    )}
+                </button>
+            </div>
+
+            {/* ── Calibration overlay ───────────────────────────────────── */}
+            {isCalibrationOpen && (
+                <div className="cal-overlay" role="dialog" aria-modal="true"
+                     aria-label={CAL_LABELS[language].title}>
+                    <div className="cal-card">
+                        <p className="cal-title">{CAL_LABELS[language].title}</p>
+
+                        {cal.status === 'listening' && (
+                            <>
+                                <p className="cal-instruction">
+                                    {CAL_LABELS[language].instruction}
+                                </p>
+                                <div className="cal-progress-track">
+                                    <div
+                                        className="cal-progress-bar"
+                                        style={{ width: `${cal.progress * 100}%` }}
+                                    />
+                                </div>
+                            </>
+                        )}
+
+                        {cal.status === 'done' && cal.measuredHz !== null && (
+                            <p className="cal-result cal-result--ok">
+                                {CAL_LABELS[language].done(cal.measuredHz)}
+                            </p>
+                        )}
+
+                        {cal.status === 'error' && (
+                            <p className="cal-result cal-result--err">
+                                {CAL_LABELS[language].error}
+                            </p>
+                        )}
+
+                        <div className="cal-actions">
+                            {(cal.status === 'done' || cal.status === 'error') && (
+                                <button className="cal-btn cal-btn--primary"
+                                    onClick={() => void cal.start()}>
+                                    {CAL_LABELS[language].instruction}
+                                </button>
+                            )}
+                            <button className="cal-btn" onClick={cal.cancel}>
+                                {CAL_LABELS[language].cancel}
+                            </button>
+                            {a4Hz !== DEFAULT_A4_HZ && (
+                                <button className="cal-btn cal-btn--reset" onClick={() => {
+                                    resetA4Hz();
+                                    setA4Hz(DEFAULT_A4_HZ);
+                                    cal.cancel();
+                                }}>
+                                    {CAL_LABELS[language].reset}
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* ── Language selector (top-right overlay) ─────────────────── */}
             <div className="lang-selector">
@@ -233,6 +404,34 @@ function LoadingDots() {
             <span className="cof-dot">.</span>
             <span className="cof-dot">.</span>
         </span>
+    );
+}
+
+// ── Tuning fork SVG icon ──────────────────────────────────────────────────────
+
+function TuningForkIcon() {
+    return (
+        <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+            style={{ width: '1.2em', height: '1.2em', display: 'block' }}
+        >
+            {/* Left tine */}
+            <line x1="9"  y1="4"  x2="9"  y2="14" />
+            {/* Right tine */}
+            <line x1="15" y1="4"  x2="15" y2="14" />
+            {/* Arc connecting the two tines at the top */}
+            <path d="M9 4 Q9 1 12 1 Q15 1 15 4" />
+            {/* Junction crossbar */}
+            <line x1="9"  y1="14" x2="15" y2="14" />
+            {/* Handle / stem */}
+            <line x1="12" y1="14" x2="12" y2="22" />
+        </svg>
     );
 }
 

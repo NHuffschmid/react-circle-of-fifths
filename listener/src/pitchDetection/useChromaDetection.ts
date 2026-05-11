@@ -77,22 +77,23 @@ const CHORD_TEMPLATES: Array<{ notes: number[]; midiNotes: number[]; label: stri
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Convert a frequency in Hz to a (floating-point) MIDI note number. */
-function freqToMidi(freq: number): number {
-    return 12 * Math.log2(freq / 440) + 69;
+function freqToMidi(freq: number, a4Hz: number): number {
+    return 12 * Math.log2(freq / a4Hz) + 69;
 }
 
 /**
  * Build a lookup table: FFT bin index → pitch class (0–11).
  * Returns null for bins outside the piano frequency range (A0 ≈ 27.5 Hz – C8 ≈ 4186 Hz).
+ * Uses a4Hz as the concert-A reference (default 440 Hz).
  */
-function buildBinToPitchClass(fftSize: number, sampleRate: number): (number | null)[] {
+function buildBinToPitchClass(fftSize: number, sampleRate: number, a4Hz: number): (number | null)[] {
     const binCount = fftSize / 2;
     const binHz    = sampleRate / fftSize;
     const map: (number | null)[] = new Array(binCount).fill(null);
     for (let i = 1; i < binCount; i++) {
         const freq = i * binHz;
         if (freq < 27.5 || freq > 4200) continue;
-        const pc = ((Math.round(freqToMidi(freq)) % 12) + 12) % 12;
+        const pc = ((Math.round(freqToMidi(freq, a4Hz)) % 12) + 12) % 12;
         map[i] = pc;
     }
     return map;
@@ -140,7 +141,7 @@ export function useChromaDetection(): PitchDetectionResult {
 
     // ── start ─────────────────────────────────────────────────────────────────
 
-    const start = useCallback(async () => {
+    const start = useCallback(async (a4Hz: number = 440) => {
         if (isActiveRef.current) return;
         isActiveRef.current = true;
 
@@ -179,7 +180,7 @@ export function useChromaDetection(): PitchDetectionResult {
             source.connect(analyser);
 
             // 3. Pre-compute bin→pitch-class lookup table
-            const binToPc   = buildBinToPitchClass(FFT_SIZE, ctx.sampleRate);
+            const binToPc   = buildBinToPitchClass(FFT_SIZE, ctx.sampleRate, a4Hz);
             binToPcRef.current = binToPc;
 
             const binsPerPc = new Array(12).fill(0);

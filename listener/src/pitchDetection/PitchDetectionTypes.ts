@@ -22,8 +22,12 @@ export interface PitchDetectionResult {
     errorMessage: string | null;
     /** Currently active MIDI note numbers (0–127) derived from the microphone input. */
     pressedNotes: Set<number>;
-    /** Start the microphone and the detection pipeline. No-op if already active. */
-    start: () => Promise<void>;
+    /**
+     * Start the microphone and the detection pipeline. No-op if already active.
+     * @param a4Hz Concert-A reference frequency in Hz (default 440). Affects the
+     *             bin→pitch-class mapping; change requires a stop()/start() cycle.
+     */
+    start: (a4Hz?: number) => Promise<void>;
     /** Stop the pipeline and release the microphone. */
     stop: () => void;
 }
