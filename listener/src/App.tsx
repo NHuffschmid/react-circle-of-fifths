@@ -65,6 +65,8 @@ const CAL_LABELS: Record<Language, {
     tooltip:     string;
     title:       string;
     instruction: string;
+    retry:       string;
+    close:       string;
     done:        (hz: number) => string;
     error:       string;
     cancel:      string;
@@ -74,6 +76,8 @@ const CAL_LABELS: Record<Language, {
         tooltip:     'Kalibrierung',
         title:       'Kammerton kalibrieren',
         instruction: 'Schlag den Kammerton A an und halte ihn.',
+        retry:       'Erneut messen',
+        close:       'Schließen',
         done:        (hz) => `Kalibriert: ${hz.toFixed(1)} Hz`,
         error:       'Kein klarer Ton erkannt. Bitte versuche es erneut.',
         cancel:      'Abbrechen',
@@ -83,6 +87,8 @@ const CAL_LABELS: Record<Language, {
         tooltip:     'Tuning calibration',
         title:       'Calibrate concert pitch',
         instruction: 'Play concert A and hold it.',
+        retry:       'Measure again',
+        close:       'Close',
         done:        (hz) => `Calibrated: ${hz.toFixed(1)} Hz`,
         error:       'No clear pitch detected. Please try again.',
         cancel:      'Cancel',
@@ -92,6 +98,8 @@ const CAL_LABELS: Record<Language, {
         tooltip:     'Calibration',
         title:       'Calibrer le la de concert',
         instruction: 'Jouez le la de concert et tenez-le.',
+        retry:       'Mesurer à nouveau',
+        close:       'Fermer',
         done:        (hz) => `Calibré : ${hz.toFixed(1)} Hz`,
         error:       'Aucune hauteur claire détectée. Veuillez réessayer.',
         cancel:      'Annuler',
@@ -101,6 +109,8 @@ const CAL_LABELS: Record<Language, {
         tooltip:     'Calibrazione',
         title:       'Calibra il diapason',
         instruction: 'Suona il la di concerto e tienilo.',
+        retry:       'Misura di nuovo',
+        close:       'Chiudi',
         done:        (hz) => `Calibrato: ${hz.toFixed(1)} Hz`,
         error:       'Nessuna nota chiara rilevata. Riprova.',
         cancel:      'Annulla',
@@ -110,6 +120,8 @@ const CAL_LABELS: Record<Language, {
         tooltip:     'Calibración',
         title:       'Calibrar el diapasón',
         instruction: 'Toca el la de concierto y mantenlo.',
+        retry:       'Medir de nuevo',
+        close:       'Cerrar',
         done:        (hz) => `Calibrado: ${hz.toFixed(1)} Hz`,
         error:       'No se detectó un tono claro. Inténtalo de nuevo.',
         cancel:      'Cancelar',
@@ -119,6 +131,8 @@ const CAL_LABELS: Record<Language, {
         tooltip:     'Calibração',
         title:       'Calibrar o diapasão',
         instruction: 'Toque o lá de concerto e segure-o.',
+        retry:       'Medir novamente',
+        close:       'Fechar',
         done:        (hz) => `Calibrado: ${hz.toFixed(1)} Hz`,
         error:       'Nenhum tom claro detectado. Tente novamente.',
         cancel:      'Cancelar',
@@ -222,7 +236,7 @@ function App() {
                 >
                     <TuningForkIcon />
                     {a4Hz !== DEFAULT_A4_HZ && (
-                        <span className="tune-btn__badge">{a4Hz.toFixed(0)}</span>
+                        <span className="tune-btn__badge">{a4Hz.toFixed(0)} Hz</span>
                     )}
                 </button>
             </div>
@@ -261,15 +275,22 @@ function App() {
                         )}
 
                         <div className="cal-actions">
+                            {cal.status === 'listening' && (
+                                <button className="cal-btn" onClick={cal.cancel}>
+                                    {CAL_LABELS[language].cancel}
+                                </button>
+                            )}
                             {(cal.status === 'done' || cal.status === 'error') && (
                                 <button className="cal-btn cal-btn--primary"
                                     onClick={() => void cal.start()}>
-                                    {CAL_LABELS[language].instruction}
+                                    {CAL_LABELS[language].retry}
                                 </button>
                             )}
-                            <button className="cal-btn" onClick={cal.cancel}>
-                                {CAL_LABELS[language].cancel}
-                            </button>
+                            {(cal.status === 'done' || cal.status === 'error') && (
+                                <button className="cal-btn" onClick={cal.cancel}>
+                                    {CAL_LABELS[language].close}
+                                </button>
+                            )}
                             {a4Hz !== DEFAULT_A4_HZ && (
                                 <button className="cal-btn cal-btn--reset" onClick={() => {
                                     resetA4Hz();
@@ -364,8 +385,8 @@ function App() {
                     </p>
                 )}
 
-                {/* QR code – centered between circle and impressum link */}
-                <div className="qr-wrapper">
+                {/* QR code – hidden while listener is active */}
+                {!isActive && <div className="qr-wrapper">
                     <QRCodeSVG
                         value={QR_URL}
                         level="Q"
@@ -379,7 +400,7 @@ function App() {
                             excavate: true,
                         }}
                     />
-                </div>
+                </div>}
 
                 {/* Impressum link */}
                 <a
@@ -421,16 +442,23 @@ function TuningForkIcon() {
             aria-hidden="true"
             style={{ width: '1.2em', height: '1.2em', display: 'block' }}
         >
+            {/*
+             * Tuning fork: two open prongs at the TOP, a U-shaped arc at the
+             * bottom connecting them, and a single stem going further down.
+             *
+             *   |   |   ← left tine (x=9) and right tine (x=15), open at top
+             *   |   |
+             *    \_/    ← semicircular arc (x=9→15, sweeps down to y=16)
+             *     |     ← stem (x=12, y=16→22)
+             */}
             {/* Left tine */}
-            <line x1="9"  y1="4"  x2="9"  y2="14" />
+            <line x1="9"  y1="2" x2="9"  y2="13" />
+            {/* U-shaped arc at bottom of tines (sweep-flag=1 = curves downward) */}
+            <path d="M9 13 A3 3 0 0 1 15 13" />
             {/* Right tine */}
-            <line x1="15" y1="4"  x2="15" y2="14" />
-            {/* Arc connecting the two tines at the top */}
-            <path d="M9 4 Q9 1 12 1 Q15 1 15 4" />
-            {/* Junction crossbar */}
-            <line x1="9"  y1="14" x2="15" y2="14" />
-            {/* Handle / stem */}
-            <line x1="12" y1="14" x2="12" y2="22" />
+            <line x1="15" y1="13" x2="15" y2="2" />
+            {/* Stem from bottom of the arc */}
+            <line x1="12" y1="16" x2="12" y2="22" />
         </svg>
     );
 }

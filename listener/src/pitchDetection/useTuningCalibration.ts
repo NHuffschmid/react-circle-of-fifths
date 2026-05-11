@@ -1,9 +1,14 @@
 /**
  * Tuning calibration hook.
  *
- * Listens to the microphone for CALIBRATION_DURATION_MS milliseconds,
- * finds the dominant peak frequency, octave-folds it into the A4 range
- * (400–480 Hz) and returns the median as the measured concert-A reference.
+ * The user plays the A note on their instrument (any octave).
+ * The algorithm detects the dominant peak frequency, folds it into the A4
+ * octave range and stores it directly as the A4 reference.
+ *
+ * Examples:
+ *   User plays A3 (210 Hz on a 420 Hz instrument) → folded to A4 = 420 Hz
+ *   User plays A4 (500 Hz on a 500 Hz instrument) → stored as 500 Hz
+ *   User plays A5 (880 Hz on a 440 Hz instrument) → folded to A4 = 440 Hz
  *
  * The result is persisted in a cookie (cof-a4-hz) and picked up by
  * useChromaDetection on the next start() call.
@@ -17,12 +22,23 @@ const FFT_SIZE = 8192;
 const CALIBRATION_DURATION_MS = 3000;
 const TICK_INTERVAL_MS = 50;
 
-/** Minimum FFT bin energy (0–255) to consider a peak valid. */
-const MIN_SIGNAL_ENERGY = 30;
+/** Minimum absolute FFT bin energy (0–255) for the peak to be considered. */
+const MIN_SIGNAL_ENERGY = 60;
 
-/** Octave-folding target range for A4 (covers 415 Hz Baroque to 466 Hz). */
-const A4_FOLD_LOW  = 400;
-const A4_FOLD_HIGH = 480;
+/**
+ * The peak bin must be at least this many times higher than the mean energy
+ * of all bins in the analysis range. This rejects broadband noise where
+ * many bins are elevated but no single frequency dominates.
+ */
+const MIN_SNR_RATIO = 5;
+
+/**
+ * Accepted range for the A4 reference after octave-folding.
+ * Wide enough to cover baroque pitch (A = 390 Hz) through very high tuning
+ * (A = 500 Hz), while excluding octave-fold ambiguity at the boundaries.
+ */
+const A4_MIN = 350;
+const A4_MAX = 550;
 
 /** Minimum number of valid samples required for a successful calibration. */
 const MIN_SAMPLES = 5;
@@ -36,7 +52,7 @@ export function readA4Hz(): number {
     const match = document.cookie.match(/(?:^|;\s*)cof-a4-hz=([^;]+)/);
     if (!match) return DEFAULT_A4_HZ;
     const val = parseFloat(match[1]);
-    return isNaN(val) || val < A4_FOLD_LOW || val > A4_FOLD_HIGH ? DEFAULT_A4_HZ : val;
+    return isNaN(val) || val < A4_MIN || val > A4_MAX ? DEFAULT_A4_HZ : val;
 }
 
 export function writeA4Hz(hz: number): void {
@@ -54,17 +70,17 @@ export function resetA4Hz(): void {
 // ── Internal helpers ─────────────────────────────────────────────────────────
 
 /**
- * Folds a frequency into the A4 calibration range by doubling/halving octaves.
- * Returns null if the frequency cannot be folded into range
- * (e.g. extremely low noise spikes).
+ * Folds a detected frequency into the A4 octave by doubling or halving.
+ * The user must play A (any octave); this collapses it to the A4 range.
+ * Returns null for values outside [A4_MIN, A4_MAX] even after folding
+ * (e.g. noise spikes below 20 Hz or above 20 kHz).
  */
 function foldToA4Range(freq: number): number | null {
+    if (freq <= 0 || !isFinite(freq)) return null;
     let f = freq;
-    // Avoid infinite loops for silence / garbage values
-    if (f <= 0 || !isFinite(f)) return null;
-    while (f < A4_FOLD_LOW) f *= 2;
-    while (f > A4_FOLD_HIGH) f /= 2;
-    if (f < A4_FOLD_LOW || f > A4_FOLD_HIGH) return null;
+    while (f < A4_MIN) f *= 2;
+    while (f > A4_MAX) f /= 2;
+    if (f < A4_MIN || f > A4_MAX) return null;
     return f;
 }
 
@@ -84,10 +100,18 @@ function findPeakFrequency(
 
     let maxEnergy = 0;
     let peakBin   = -1;
+    let sumEnergy = 0;
+    const binCount = maxBin - minBin + 1;
+
     for (let i = minBin; i <= maxBin; i++) {
+        sumEnergy += freqData[i];
         if (freqData[i] > maxEnergy) { maxEnergy = freqData[i]; peakBin = i; }
     }
     if (peakBin === -1 || maxEnergy < MIN_SIGNAL_ENERGY) return null;
+
+    // SNR check: peak must stand out clearly above the mean noise floor
+    const meanEnergy = sumEnergy / binCount;
+    if (meanEnergy === 0 || maxEnergy / meanEnergy < MIN_SNR_RATIO) return null;
 
     // Parabolic interpolation for sub-bin frequency accuracy
     let refined = peakBin;
@@ -190,8 +214,8 @@ export function useTuningCalibration(): CalibrationResult {
                 analyser.getByteFrequencyData(freqData);
                 const peak = findPeakFrequency(freqData, ctx.sampleRate, FFT_SIZE);
                 if (peak !== null) {
-                    const folded = foldToA4Range(peak);
-                    if (folded !== null) samplesRef.current.push(folded);
+                    const a4 = foldToA4Range(peak);
+                    if (a4 !== null) samplesRef.current.push(a4);
                 }
 
                 if (elapsed >= CALIBRATION_DURATION_MS) {
