@@ -231,6 +231,7 @@ const CircleOfFifths: React.FC<CircleOfFifthsProps> = ({
                                         textAnchor="middle" dominantBaseline="central"
                                         fontSize={14}
                                         fill="#fff"
+                                        fontFamily="'Noto Serif', 'Noto Sans Symbols', 'Segoe UI Symbol', 'Apple Symbols', serif"
                                         style={{ userSelect: 'none' }}
                                     >
                                         {ACCIDENTALS[i]}
