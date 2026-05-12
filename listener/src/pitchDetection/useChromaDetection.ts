@@ -189,11 +189,11 @@ export function useChromaDetection(): PitchDetectionResult {
             }
             binsPerPcRef.current = binsPerPc;
 
-            console.log(
-                `[ChromaDetection] AudioContext SR: ${ctx.sampleRate} Hz` +
-                ` | FFT bins: ${analyser.frequencyBinCount}` +
-                ` | bins per PC: [${binsPerPc.join(', ')}]`
-            );
+            // console.log(
+            //     `[ChromaDetection] AudioContext SR: ${ctx.sampleRate} Hz` +
+            //     ` | FFT bins: ${analyser.frequencyBinCount}` +
+            //     ` | bins per PC: [${binsPerPc.join(', ')}]`
+            // );
 
             setStatus('active');
 
@@ -275,12 +275,12 @@ export function useChromaDetection(): PitchDetectionResult {
                     const tmpl = CHORD_TEMPLATES[dominantIdx];
                     activeChordRef.current = dominantIdx;
                     setPressedNotes(new Set(tmpl.midiNotes));
-                    console.log(
-                        `[ChromaDetection] Chord: ${tmpl.label}` +
-                        ` | score: ${bestScore.toFixed(2)}` +
-                        ` | maxEnergy: ${maxEnergy.toFixed(1)}` +
-                        ` | votes: ${dominantCount}/${recentCandidatesRef.current.length}`
-                    );
+                    // console.log(
+                    //     `[ChromaDetection] Chord: ${tmpl.label}` +
+                    //     ` | score: ${bestScore.toFixed(2)}` +
+                    //     ` | maxEnergy: ${maxEnergy.toFixed(1)}` +
+                    //     ` | votes: ${dominantCount}/${recentCandidatesRef.current.length}`
+                    // );
                 }
 
                 // ── Deactivate ────────────────────────────────────────────────
@@ -292,7 +292,7 @@ export function useChromaDetection(): PitchDetectionResult {
                     if (activeCount < CANDIDATE_DEACTIVATE_MIN) {
                         activeChordRef.current = -1;
                         setPressedNotes(new Set());
-                        console.log('[ChromaDetection] Chord cleared');
+                        // console.log('[ChromaDetection] Chord cleared');
                     }
                 }
 
@@ -305,11 +305,11 @@ export function useChromaDetection(): PitchDetectionResult {
                         .slice(0, 3)
                         .map(({ pc, e }) => `${NOTE_NAMES[pc]}:${e.toFixed(1)}`);
                     const bestLabel = bestIdx >= 0 ? CHORD_TEMPLATES[bestIdx].label : '—';
-                    console.log(
-                        `[ChromaDetection] maxEnergy: ${maxEnergy.toFixed(1)}` +
-                        ` | top: ${top3.join('  ')}` +
-                        ` | best: ${bestLabel} (${bestScore.toFixed(2)})`
-                    );
+                    // console.log(
+                    //     `[ChromaDetection] maxEnergy: ${maxEnergy.toFixed(1)}` +
+                    //     ` | top: ${top3.join('  ')}` +
+                    //     ` | best: ${bestLabel} (${bestScore.toFixed(2)})`
+                    // );
                 }
 
             }, ANALYSIS_INTERVAL_MS);
