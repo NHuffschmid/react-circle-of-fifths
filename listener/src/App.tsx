@@ -331,6 +331,8 @@ function App() {
                         dominantSeventhMajorKeys={dominantSeventhMajorKeys}
                         language={language}
                         accentColor="#555"
+                        opacityOn={1.0}
+                        opacityOff={isActive ? 0.35 : 0.2}
                     />
                     {/* Start/Stop Button in the center */}
                     <div className="btn-overlay">
