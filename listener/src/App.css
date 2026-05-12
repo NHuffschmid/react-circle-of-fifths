@@ -114,17 +114,19 @@
     height: 0;
 }
 
-/* ── Footer ──────────────────────────────────────────────────────────────── */
+/* ── Status messages (bottom centre) ────────────────────────────────────── */
 
-.app-footer {
+.status-messages {
+    position: absolute;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 8px;
-    padding: 8px 16px 12px;
-    flex-shrink: 0;
-    width: 100%;
-    box-sizing: border-box;
+    pointer-events: none;
 }
 
 /* ── Error message ───────────────────────────────────────────────────────── */
@@ -137,22 +139,25 @@
 
 .loading-text { margin: 0; font-size: 0.78rem; color: #888; text-align: center; }
 
-/* ── QR code ─────────────────────────────────────────────────────────────── */
+/* ── QR code (bottom-left) ──────────────────────────────────────────────── */
 
 .qr-wrapper {
-    margin-top: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    position: absolute;
+    bottom: 12px;
+    left: 16px;
+    z-index: 10;
 }
 
-/* ── Impressum link ──────────────────────────────────────────────────────── */
+/* ── Impressum link (bottom-right) ──────────────────────────────────────── */
 
 .impressum-link {
+    position: absolute;
+    bottom: 14px;
+    right: 16px;
+    z-index: 10;
     color: #888;
     font-size: 0.8rem;
     text-decoration: underline;
-    margin-top: 6px;
 }
 
 /* ── Tuning fork button (top-left) ───────────────────────────────────────── */

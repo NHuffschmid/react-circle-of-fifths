@@ -361,34 +361,35 @@ function App() {
                 </div>
             </div>
 
-            {/* ── Footer ───────────────────────────────────────────────────── */}
-            <footer className="app-footer">
-                {/* Error message (only shown when status === 'error') */}
-                {status === 'error' && (() => {
-                    const localised = getMicError(errorMessage, language);
-                    return (
-                        <div className="error-box">
-                            <p className="error-title">
-                                {localised?.title ?? errorMessage ?? 'Error'}
-                            </p>
-                            {localised && (
-                                <p className="error-hint">
-                                    {localised.hint}
+            {/* ── Status messages (bottom centre) ────────────────────────── */}
+            {(status === 'error' || (isBusy && status === 'loading')) && (
+                <div className="status-messages">
+                    {status === 'error' && (() => {
+                        const localised = getMicError(errorMessage, language);
+                        return (
+                            <div className="error-box">
+                                <p className="error-title">
+                                    {localised?.title ?? errorMessage ?? 'Error'}
                                 </p>
-                            )}
-                        </div>
-                    );
-                })()}
+                                {localised && (
+                                    <p className="error-hint">
+                                        {localised.hint}
+                                    </p>
+                                )}
+                            </div>
+                        );
+                    })()}
+                    {isBusy && status === 'loading' && (
+                        <p className="loading-text">
+                            <>Loading model… <LoadingDots /></>
+                        </p>
+                    )}
+                </div>
+            )}
 
-                {/* Loading indicator (nur für Modell-Laden, nicht für Requesting microphone) */}
-                {isBusy && status === 'loading' && (
-                    <p className="loading-text">
-                        <>Loading model… <LoadingDots /></>
-                    </p>
-                )}
-
-                {/* QR code – hidden while listener is active */}
-                {!isActive && <div className="qr-wrapper">
+            {/* ── QR code (bottom-left) ────────────────────────────────────── */}
+            {!isActive && (
+                <div className="qr-wrapper">
                     <QRCodeSVG
                         value={QR_URL}
                         level="Q"
@@ -402,18 +403,18 @@ function App() {
                             excavate: true,
                         }}
                     />
-                </div>}
+                </div>
+            )}
 
-                {/* Impressum link */}
-                <a
-                    href={`${import.meta.env.BASE_URL}impressum/index.html`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="impressum-link"
-                >
-                    Impressum / Legal Notice
-                </a>
-            </footer>
+            {/* ── Impressum link (bottom-right) ────────────────────────────── */}
+            <a
+                href={`${import.meta.env.BASE_URL}impressum/index.html`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="impressum-link"
+            >
+                Impressum / Legal Notice
+            </a>
         </div>
     );
 }
