@@ -349,8 +349,8 @@ function App() {
                                 // Animated dots – plain text, no emoji
                                 ? <><span className="cof-dot">&#9679;</span><span className="cof-dot">&#9679;</span><span className="cof-dot">&#9679;</span></>
                                 : isActive
-                                // Stop icon: filled square via CSS
-                                ? <span className="btn-icon-stop" style={{ width: Math.round(btnSize * 0.28), height: Math.round(btnSize * 0.28) }} />
+                                // Microphone icon (active state)
+                                ? <MicIcon size={Math.round(btnSize * 0.52)} />
                                 // Play icon: right-pointing triangle via CSS borders
                                 : <span className="btn-icon-play" style={{ borderTop: `${Math.round(btnSize * 0.17)}px solid transparent`, borderBottom: `${Math.round(btnSize * 0.17)}px solid transparent`, borderLeft: `${Math.round(btnSize * 0.28)}px solid #fff`, marginLeft: Math.round(btnSize * 0.05) }} />
                             }
@@ -436,29 +436,55 @@ function TuningForkIcon() {
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+            style={{ width: '1.6em', height: '1.6em', display: 'block' }}
+        >
+            {/*
+             * Tuning fork: two prongs open at the top, compact U-arc at the
+             * bottom, and a stem going down.
+             *
+             *   |   |   ← left tine (x=9.5) and right tine (x=14.5)
+             *   |   |
+             *    \_/    ← arc radius 2.5 at y=12
+             *     |     ← stem (x=12, y=15→22)
+             */}
+            {/* Left tine */}
+            <line x1="9.5"  y1="2" x2="9.5"  y2="12" />
+            {/* Arc curving toward the tines (sweep-flag=0 → bows upward) */}
+            <path d="M9.5 12 A2.5 2.5 0 0 0 14.5 12" />
+            {/* Right tine */}
+            <line x1="14.5" y1="12" x2="14.5" y2="2" />
+            {/* Stem */}
+            <line x1="12" y1="14.5" x2="12" y2="22" />
+        </svg>
+    );
+}
+
+// ── Microphone SVG icon ───────────────────────────────────────────────────────
+
+function MicIcon({ size }: { size: number }) {
+    return (
+        <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
             strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
             aria-hidden="true"
-            style={{ width: '1.2em', height: '1.2em', display: 'block' }}
+            style={{ width: size, height: size, display: 'block' }}
         >
-            {/*
-             * Tuning fork: two open prongs at the TOP, a U-shaped arc at the
-             * bottom connecting them, and a single stem going further down.
-             *
-             *   |   |   ← left tine (x=9) and right tine (x=15), open at top
-             *   |   |
-             *    \_/    ← semicircular arc (x=9→15, sweeps down to y=16)
-             *     |     ← stem (x=12, y=16→22)
-             */}
-            {/* Left tine */}
-            <line x1="9"  y1="2" x2="9"  y2="13" />
-            {/* U-shaped arc at bottom of tines (sweep-flag=1 = curves downward) */}
-            <path d="M9 13 A3 3 0 0 1 15 13" />
-            {/* Right tine */}
-            <line x1="15" y1="13" x2="15" y2="2" />
-            {/* Stem from bottom of the arc */}
-            <line x1="12" y1="16" x2="12" y2="22" />
+            {/* Capsule body – filled */}
+            <rect x="9" y="2" width="6" height="12" rx="3" ry="3" fill="currentColor" stroke="none" />
+            {/* Arc / sound pickup curve */}
+            <path d="M5 10 A7 7 0 0 0 19 10" />
+            {/* Stand */}
+            <line x1="12" y1="17" x2="12" y2="22" />
+            {/* Base */}
+            <line x1="8"  y1="22" x2="16" y2="22" />
         </svg>
     );
 }
