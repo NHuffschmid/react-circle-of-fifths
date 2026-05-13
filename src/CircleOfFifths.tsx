@@ -195,6 +195,7 @@ const CircleOfFifths: React.FC<CircleOfFifthsProps> = ({
                                     fontSize={(majSel || dom7Sel) ? 24 : 21}
                                     fontWeight={(majSel || dom7Sel) ? 'bold' : 'normal'}
                                     fill={labelColor(skrjabinFill(i))}
+                                    fontFamily="'Noto Serif', 'Noto Sans Symbols', 'Segoe UI Symbol', 'Apple Symbols', serif"
                                     style={{ userSelect: 'none' }}
                                 >
                                     {getMajorKeyLabel(lang, i)}
@@ -220,6 +221,7 @@ const CircleOfFifths: React.FC<CircleOfFifthsProps> = ({
                                     fontSize={minSel ? 19 : 16}
                                     fontWeight={minSel ? 'bold' : 'normal'}
                                     fill='#fff'
+                                    fontFamily="'Noto Serif', 'Noto Sans Symbols', 'Segoe UI Symbol', 'Apple Symbols', serif"
                                     style={{ userSelect: 'none' }}
                                 >
                                     {getMinorKeyLabel(lang, i)}
