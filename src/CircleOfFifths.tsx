@@ -25,7 +25,7 @@ export interface CircleOfFifthsProps {
      */
     opacityOn?: number;
     /**
-     * Opacity of a segment in the OFF (non-selected) state while a selection is active.
+     * Opacity of a segment in the OFF (non-selected) state.
      * Range 0–1. Default: 0.20.
      */
     opacityOff?: number;
