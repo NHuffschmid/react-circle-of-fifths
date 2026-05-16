@@ -6,7 +6,6 @@
 //
 // Available engines:
 //   useChromaDetection   – Web Audio FFT chroma (~50 ms latency, no model)
-//   useBasicPitchDetection – @spotify/basic-pitch TF.js (~1.3 s latency, ML)
 
 export { useChromaDetection as usePitchDetection } from './useChromaDetection';
 export type { PitchDetectionResult, PitchDetectionStatus } from './PitchDetectionTypes';
