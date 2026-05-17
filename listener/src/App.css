@@ -1,0 +1,296 @@
+/* ── Keyframe animations ─────────────────────────────────────────────────── */
+
+@keyframes cof-btn-blink {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.1; }
+}
+
+@keyframes cof-dot-blink {
+    0%, 80%, 100% { opacity: 0.2; }
+    40%           { opacity: 1;   }
+}
+
+.cof-dot { animation: cof-dot-blink 1.4s infinite ease-in-out; display: inline-block; }
+.cof-dot:nth-child(2) { animation-delay: 0.2s; }
+.cof-dot:nth-child(3) { animation-delay: 0.4s; }
+
+/* ── App root ────────────────────────────────────────────────────────────── */
+
+.app-root {
+    width: 100vw;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background-color: #111;
+    color: #fff;
+    font-family: system-ui, -apple-system, sans-serif;
+    overflow: hidden;
+    user-select: none;
+}
+
+/* ── Language selector ───────────────────────────────────────────────────── */
+
+.lang-selector {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    z-index: 10;
+}
+
+.lang-select {
+    background: #1e1e1e;
+    color: #ccc;
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    outline: none;
+}
+
+/* ── Circle of Fifths area ───────────────────────────────────────────────── */
+
+.circle-area {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+.circle-container {
+    width: 100%;
+    aspect-ratio: 1;
+    max-height: 100%;
+    position: relative;
+}
+
+/* ── Start/Stop button ───────────────────────────────────────────────────── */
+
+.btn-overlay {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 3;
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cof-btn {
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    line-height: 1;
+    transition: background 0.25s, opacity 0.25s;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cof-btn--idle   { background: #1b5e20; cursor: pointer; opacity: 1; }
+.cof-btn--active { background: #b71c1c; cursor: pointer; opacity: 1; animation: cof-btn-blink 1s ease-in-out infinite; }
+.cof-btn--busy   { background: #2a2a2a; cursor: default; opacity: 0.4; }
+
+/* ── Button icon helpers ─────────────────────────────────────────────────── */
+
+.btn-icon-stop {
+    display: block;
+    background: #fff;
+    border-radius: 4px;
+}
+
+.btn-icon-play {
+    display: block;
+    width: 0;
+    height: 0;
+}
+
+/* ── Status messages (bottom centre) ────────────────────────────────────── */
+
+.status-messages {
+    position: absolute;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    pointer-events: none;
+}
+
+/* ── Error message ───────────────────────────────────────────────────────── */
+
+.error-box   { margin: 0; text-align: center; }
+.error-title { margin: 0 0 4px; font-size: 0.82rem; color: #ff6b6b; font-weight: 600; }
+.error-hint  { margin: 0; font-size: 0.75rem; color: #ff9999; max-width: 280px; }
+
+/* ── Loading text ────────────────────────────────────────────────────────── */
+
+.loading-text { margin: 0; font-size: 0.78rem; color: #888; text-align: center; }
+
+/* ── QR code (bottom-left) ──────────────────────────────────────────────── */
+
+.qr-wrapper {
+    position: absolute;
+    bottom: 12px;
+    left: 16px;
+    z-index: 10;
+}
+
+/* ── Impressum link (bottom-right) ──────────────────────────────────────── */
+
+.impressum-link {
+    position: absolute;
+    bottom: 14px;
+    right: 16px;
+    z-index: 10;
+    color: #888;
+    font-size: 0.8rem;
+    text-decoration: underline;
+}
+
+/* ── Tuning fork button (top-left) ───────────────────────────────────────── */
+
+.tune-btn-wrap {
+    position: absolute;
+    top: 12px;
+    left: 16px;
+    z-index: 10;
+}
+
+.tune-btn {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    background: #1e1e1e;
+    color: #ccc;
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    outline: none;
+    line-height: 1;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    transition: color 0.2s, border-color 0.2s;
+}
+
+.tune-btn--calibrated {
+    color: #7ec8a4;
+    border-color: #7ec8a4;
+}
+
+.tune-btn__badge {
+    font-size: 0.72rem;
+    opacity: 0.85;
+    letter-spacing: 0.02em;
+}
+
+/* ── Calibration overlay ─────────────────────────────────────────────────── */
+
+.cal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.72);
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-start;
+    padding: 60px 16px 16px;
+    z-index: 50;
+}
+
+.cal-card {
+    background: #1e1e1e;
+    border: 1px solid #444;
+    border-radius: 10px;
+    padding: 18px 20px;
+    max-width: 320px;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+}
+
+.cal-title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #e0e0e0;
+}
+
+.cal-instruction {
+    margin: 0;
+    font-size: 0.88rem;
+    color: #aaa;
+    line-height: 1.4;
+}
+
+.cal-progress-track {
+    height: 6px;
+    background: #333;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.cal-progress-bar {
+    height: 100%;
+    background: #7ec8a4;
+    border-radius: 3px;
+    transition: width 0.1s linear;
+}
+
+.cal-result {
+    margin: 0;
+    font-size: 0.92rem;
+    font-weight: 500;
+}
+
+.cal-result--ok  { color: #7ec8a4; }
+.cal-result--err { color: #ff6b6b; }
+
+.cal-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.cal-btn {
+    flex: 1;
+    min-width: 0;
+    padding: 7px 12px;
+    border-radius: 6px;
+    border: 1px solid #444;
+    background: #2a2a2a;
+    color: #ccc;
+    font-size: 0.82rem;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    white-space: nowrap;
+}
+
+.cal-btn--primary {
+    background: #1b5e20;
+    border-color: #2e7d32;
+    color: #fff;
+}
+
+.cal-btn--reset {
+    border-color: #555;
+    color: #888;
+    flex: 100%;
+    text-align: center;
+}

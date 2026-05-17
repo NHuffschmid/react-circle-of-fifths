@@ -32,6 +32,11 @@ Since `react-piano-keyboard` is not on npm, the consuming app must configure a m
 (e.g. via Vite's `resolve.alias`) pointing `react-piano-keyboard` to the
 `react-piano-keyboard/src/index.ts` path of its own submodule checkout.
 
+## Live Demo
+
+A live demo is available at **https://nhuffschmid.github.io/react-circle-of-fifths/**.
+
+
 ## Usage
 
 ### Rendering the Component
@@ -45,6 +50,8 @@ import { CircleOfFifths } from './react-circle-of-fifths/src';
     dominantSeventhMajorKeys={[]}
     language="de"
     accentColor="#DC143C"
+    opacityOn={0.9}                // default – fully visible when selected
+    opacityOff={0.20}              // default – nearly invisible when not selected
 />
 ```
 
@@ -71,6 +78,8 @@ Pass an empty set to pause detection without unmounting.
 | `dominantSeventhMajorKeys` | `number[]` | `[]` | Indices shown with superscript "7" |
 | `language` | `string` | `'en'` | BCP-47 language tag for note name labels |
 | `accentColor` | `string` | `'#DC143C'` | CSS color for the accidentals ring |
+| `opacityOn` | `number` | `0.9` | Opacity (0–1) of a segment in the ON (highlighted) state |
+| `opacityOff` | `number` | `0.20` | Opacity (0–1) of a segment in the OFF (non-highlighted) state |
 
 ### `useCircleOfFifthsDetection(pressedNotes)`
 
