@@ -26,13 +26,15 @@ describe('CircleOfFifths', () => {
 
     it('applies low opacity when nothing is selected', () => {
         const { container } = render(<CircleOfFifths />);
-        const svg = container.querySelector('svg') as SVGSVGElement;
-        expect(svg.style.opacity).toBe('0.2');
+        // Opacity is applied per segment <g> element, not on the <svg> root.
+        const firstSegmentGroup = container.querySelector('svg > g > g') as SVGGElement;
+        expect(firstSegmentGroup.getAttribute('opacity')).toBe('0.2');
     });
 
     it('applies full opacity when a major key is selected', () => {
         const { container } = render(<CircleOfFifths selectedMajorKeys={[0]} />);
-        const svg = container.querySelector('svg') as SVGSVGElement;
-        expect(svg.style.opacity).toBe('1');
+        // Segment 0 (C major) should have full opacity when selected.
+        const firstSegmentGroup = container.querySelector('svg > g > g') as SVGGElement;
+        expect(firstSegmentGroup.getAttribute('opacity')).toBe('0.9');
     });
 });
