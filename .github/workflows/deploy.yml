@@ -38,9 +38,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: listener
-        run: |
-          rm -f package-lock.json
-          npm install
+        run: npm ci
 
       - name: Build
         working-directory: listener
