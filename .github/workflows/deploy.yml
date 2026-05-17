@@ -35,12 +35,12 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: 22.x
-          cache: 'npm'
-          cache-dependency-path: listener/package-lock.json
 
       - name: Install dependencies
         working-directory: listener
-        run: npm install
+        run: |
+          rm -f package-lock.json
+          npm install
 
       - name: Build
         working-directory: listener
