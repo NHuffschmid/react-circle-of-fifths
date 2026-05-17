@@ -1,6 +1,6 @@
 # react-circle-of-fifths
 
-![CI](https://github.com/NHuffschmid/react-circle-of-fifths/actions/workflows/ci.yml/badge.svg?branch=develop)
+![CI](https://github.com/NHuffschmid/react-circle-of-fifths/actions/workflows/ci.yml/badge.svg)
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
 
 A React component that renders an interactive Circle of Fifths with real-time key detection from MIDI input.
