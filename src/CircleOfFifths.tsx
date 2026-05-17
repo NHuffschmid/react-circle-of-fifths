@@ -19,6 +19,16 @@ export interface CircleOfFifthsProps {
      * Accepts any valid CSS color string. Default: '#DC143C'.
      */
     accentColor?: string;
+    /**
+     * Opacity of a segment in the ON (selected / highlighted) state.
+     * Range 0–1. Default: 0.9.
+     */
+    opacityOn?: number;
+    /**
+     * Opacity of a segment in the OFF (non-selected) state.
+     * Range 0–1. Default: 0.20.
+     */
+    opacityOff?: number;
 }
 
 // Accidentals for each index (sharps: ♯, flats: ♭, empty for C).
@@ -112,11 +122,9 @@ function arcPath(rInner: number, rOuter: number, centerDeg: number): string {
 const segAngle = (i: number) => -90 + i * 30;
 
 // ── Opacity constants ────────────────────────────────────────────────────────
-/** Overall opacity when nothing is selected (watermark look). */
-const OPACITY_IDLE = 0.20;
 /** Opacity of a selected segment. */
 const OPACITY_SELECTED = 0.9;
-/** Opacity of a non-selected segment when a selection is active. */
+/** Opacity of a non-selected segment. */
 const OPACITY_DIMMED = 0.20;
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -127,13 +135,14 @@ const CircleOfFifths: React.FC<CircleOfFifthsProps> = ({
     dominantSeventhMajorKeys,
     language,
     accentColor = '#DC143C',
+    opacityOn  = OPACITY_SELECTED,
+    opacityOff = OPACITY_DIMMED,
 }) => {
     const lang = resolveLanguage(language?.split('-')[0] ?? 'en');
 
     const selMajor = selectedMajorKeys ?? [];
     const selMinor = selectedMinorKeys ?? [];
     const selDom7  = dominantSeventhMajorKeys ?? [];
-    const hasSelection = selMajor.length > 0 || selMinor.length > 0 || selDom7.length > 0;
 
     return (
         <div style={{
@@ -151,7 +160,6 @@ const CircleOfFifths: React.FC<CircleOfFifthsProps> = ({
                     width: '100%',
                     height: '100%',
                     pointerEvents: 'none',
-                    opacity: hasSelection ? 1 : OPACITY_IDLE,
                 }}
             >
                 {Array.from({ length: 12 }, (_, i) => {
@@ -161,9 +169,9 @@ const CircleOfFifths: React.FC<CircleOfFifthsProps> = ({
                     const minSel  = selMinor.includes(i);
                     const dom7Sel = selDom7.includes(i);
 
-                    const majOpacity = hasSelection ? ((majSel || dom7Sel) ? OPACITY_SELECTED : OPACITY_DIMMED) : 1;
-                    const minOpacity = hasSelection ? (minSel ? OPACITY_SELECTED : OPACITY_DIMMED) : 1;
-                    const accOpacity = hasSelection ? ((majSel || minSel || dom7Sel) ? OPACITY_SELECTED : OPACITY_DIMMED) : 1;
+                    const majOpacity = (majSel || dom7Sel) ? opacityOn : opacityOff;
+                    const minOpacity = minSel ? opacityOn : opacityOff;
+                    const accOpacity = (majSel || minSel || dom7Sel) ? opacityOn : opacityOff;
 
                     const majMidR = (R_MAJOR_INNER + R_MAJOR_OUTER) / 2;
                     const minMidR = (R_MINOR_INNER + R_MINOR_OUTER) / 2;
@@ -187,6 +195,7 @@ const CircleOfFifths: React.FC<CircleOfFifthsProps> = ({
                                     fontSize={(majSel || dom7Sel) ? 24 : 21}
                                     fontWeight={(majSel || dom7Sel) ? 'bold' : 'normal'}
                                     fill={labelColor(skrjabinFill(i))}
+                                    fontFamily="'Noto Serif', 'Noto Sans Symbols', 'Segoe UI Symbol', 'Apple Symbols', serif"
                                     style={{ userSelect: 'none' }}
                                 >
                                     {getMajorKeyLabel(lang, i)}
@@ -212,6 +221,7 @@ const CircleOfFifths: React.FC<CircleOfFifthsProps> = ({
                                     fontSize={minSel ? 19 : 16}
                                     fontWeight={minSel ? 'bold' : 'normal'}
                                     fill='#fff'
+                                    fontFamily="'Noto Serif', 'Noto Sans Symbols', 'Segoe UI Symbol', 'Apple Symbols', serif"
                                     style={{ userSelect: 'none' }}
                                 >
                                     {getMinorKeyLabel(lang, i)}
@@ -231,6 +241,7 @@ const CircleOfFifths: React.FC<CircleOfFifthsProps> = ({
                                         textAnchor="middle" dominantBaseline="central"
                                         fontSize={14}
                                         fill="#fff"
+                                        fontFamily="'Noto Serif', 'Noto Sans Symbols', 'Segoe UI Symbol', 'Apple Symbols', serif"
                                         style={{ userSelect: 'none' }}
                                     >
                                         {ACCIDENTALS[i]}
