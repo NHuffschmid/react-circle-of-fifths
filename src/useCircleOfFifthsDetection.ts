@@ -111,6 +111,19 @@ export function useCircleOfFifthsDetection(
     useEffect(() => {
         activeNotesRef.current = pressedNotes;
 
+        // When notes are released, clear the windows immediately instead of
+        // waiting up to WINDOW_MS (2 s) for the timer to expire.
+        if (pressedNotes.size === 0 && prevNotesRef.current.size > 0) {
+            windowRef.current = [];
+            longWindowRef.current = [];
+            if (timerRef.current !== null) { clearTimeout(timerRef.current); timerRef.current = null; }
+            if (longTimerRef.current !== null) { clearTimeout(longTimerRef.current); longTimerRef.current = null; }
+            setWindowNotes(new Set());
+            setLongPcFreq(new Map());
+            prevNotesRef.current = new Set();
+            return;
+        }
+
         const prev = prevNotesRef.current;
         const now = Date.now();
         let newNoteOn = false;
