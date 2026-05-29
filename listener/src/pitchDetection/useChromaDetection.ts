@@ -53,7 +53,7 @@ const CANDIDATE_WINDOW_SIZE = 15;
 /**
  * A chord is activated / switched-to only when it appears in this many *consecutive*
  * ticks at the tail of the sliding window.
- * Minimum activation latency = CANDIDATE_MIN_WINS × 50 ms = 500 ms.
+ * Minimum activation latency = CANDIDATE_MIN_WINS × 50 ms = 250 ms.
  *
  * Consecutive (not total-count) voting is the key improvement over the previous approach:
  * piano attack transients affect only the first 1–3 ticks after a key strike. Because those
@@ -62,7 +62,7 @@ const CANDIDATE_WINDOW_SIZE = 15;
  * The old count-in-window approach allowed wrong-chord votes to accumulate across the full
  * window and thus briefly activate a wrong key when the attack transient was long enough.
  */
-const CANDIDATE_MIN_WINS = 10;
+const CANDIDATE_MIN_WINS = 5;
 
 /**
  * Onset detection: if the raw (unsmoothed, single-tick) chroma max energy rises by
@@ -87,14 +87,14 @@ const ONSET_RATIO = 1.5;
  * Minimum time in milliseconds a chord must remain visible before it can be
  * replaced by a newly confirmed chord.
  * This is the primary safeguard against display flutter: even if the algorithm
- * confidently detects a new chord within 500 ms, it cannot update the display
+ * confidently detects a new chord within 250 ms, it cannot update the display
  * until the current chord has been shown for at least this long.
- * Effect: if the musician plays one chord every 2 s, the display updates at most
+ * Effect: if the musician plays one chord every 1 s, the display updates at most
  * once every MIN_HOLD_MS — matching the actual playing tempo.
  * First activation from silence is not gated (MIN_HOLD_MS only applies to
  * chord-to-chord switches).
  */
-const MIN_HOLD_MS = 1500;
+const MIN_HOLD_MS = 750;
 
 /**
  * Milliseconds without a confirmed chord win before the active chord display
