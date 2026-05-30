@@ -5,7 +5,7 @@
  *   getUserMedia → AnalyserNode (FFT) → chroma vector (12 pitch classes)
  *   → chord template matching → stability voting → Set<midiNote>
  *
- * Latency: ~50–150 ms (no ML model, no CDN dependency).
+ * Latency: ~250–400 ms (no ML model, no CDN dependency).
  */
 
 import { useCallback, useRef, useState } from 'react';
@@ -26,7 +26,7 @@ const ANALYSIS_INTERVAL_MS = 50;
 /**
  * Minimum average normalised score for a chord template match to be accepted
  * when no chord is currently active (first activation from silence).
- * Score = (sum of smoothed chroma values at the 3 chord notes) / (3 × maxEnergy).
+ * Score = (sum of per-tick chroma values at the 3 chord notes) / (3 × maxEnergy).
  * 0.55 means the three chord notes average at least 55 % of the peak note's energy.
  * Lowered from 0.60: some chords (e.g. D major on piano) fluctuate between 0.56–0.77
  * due to overtone overlap, and the stricter 0.60 gate broke consecutive runs mid-chord.
@@ -67,9 +67,8 @@ const CANDIDATE_MIN_WINS = 5;
 /**
  * Onset detection: if the raw (unsmoothed, single-tick) chroma max energy rises by
  * more than this factor in one 50 ms tick, a new chord onset is assumed.
- * On onset the chroma-smoothing history and the candidate vote window are flushed
- * so that decaying strings from the previously-released chord cannot score into
- * the new chord's template matches.
+ * On onset the candidate vote window is flushed so that decaying strings from
+ * the previously-released chord cannot score into the new chord's template matches.
  *
  * Root cause this solves: A major {A, C#, E} and E major {E, G#, B} share no
  * pitch class, but C# minor {C#, E, G#} has exactly the two that overlap the
