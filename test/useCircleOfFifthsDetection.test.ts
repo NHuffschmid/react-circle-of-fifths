@@ -54,6 +54,26 @@ describe('useCircleOfFifthsDetection – key detection', () => {
         // Just check it doesn't throw.
         expect(result.current).toBeDefined();
     });
+
+    it('clears all detected keys immediately when pressedNotes becomes empty (immediate-release regression)', () => {
+        // Regression: both sliding windows and pending timers must be cleared
+        // synchronously inside the useEffect when pressedNotes transitions from
+        // non-empty to empty — the result must be empty on the very next render,
+        // not after WINDOW_MS (2 s) timer expiry.
+        const { result, rerender } = renderHook(
+            ({ notes }: { notes: Set<number> }) => useCircleOfFifthsDetection(notes),
+            { initialProps: { notes: new Set([60, 64, 67]) } }, // C major triad → index 0
+        );
+        expect(result.current.selectedMajorKeys).toContain(0);
+
+        act(() => {
+            rerender({ notes: new Set() });
+        });
+
+        expect(result.current.selectedMajorKeys).toEqual([]);
+        expect(result.current.selectedMinorKeys).toEqual([]);
+        expect(result.current.dominantSeventhMajorKeys).toEqual([]);
+    });
 });
 
 describe('useCircleOfFifthsDetection – timer cleanup', () => {

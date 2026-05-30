@@ -65,7 +65,8 @@ const { selectedMajorKeys, selectedMinorKeys, dominantSeventhMajorKeys } =
 ```
 
 `pressedNotes` is a `Set<number>` of currently pressed MIDI note numbers.
-Pass an empty set to pause detection without unmounting.
+Pass an empty set to pause detection: the accumulated note history and any pending
+timers are cleared immediately, so the detection result resets on the next render.
 
 ## API
 
@@ -102,6 +103,7 @@ Uses a two-window sliding accumulation strategy:
 - **Chord mode** (3–4 unique pitch classes in a 2-second window): tonic-triad and dominant-seventh matching.
 - **Passage mode** (5+ unique pitch classes): diatonic scale overlap scoring.
 - **Discrimination**: when both a major key and its relative/parallel minor are detected, the one whose root appears less frequently in a 6-second window is removed.
+- **Immediate release**: when `pressedNotes` becomes empty the accumulated 2-second and 6-second windows are cleared at once and pending expiry timers are cancelled, so the detection result resets on the next render without waiting for timer expiry.
 
 ## Example
 

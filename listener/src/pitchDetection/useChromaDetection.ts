@@ -3,9 +3,9 @@
  *
  * Pipeline:
  *   getUserMedia → AnalyserNode (FFT) → chroma vector (12 pitch classes)
- *   → rolling smoothing → relative threshold → Set<midiNote>
+ *   → chord template matching → stability voting → Set<midiNote>
  *
- * Latency: ~50–150 ms (no ML model, no CDN dependency).
+ * Latency: ~250–400 ms (no ML model, no CDN dependency).
  */
 
 import { useCallback, useRef, useState } from 'react';
@@ -16,8 +16,6 @@ import type { PitchDetectionResult, PitchDetectionStatus } from './PitchDetectio
 /** FFT size – higher = better frequency resolution (must be a power of 2). */
 const FFT_SIZE = 8192;
 
-/** Number of analysis frames to average the chroma vector over (~150 ms at 50 ms/tick). */
-const SMOOTHING_FRAMES = 3;
 
 /** Minimum average-per-bin energy before any chord detection is attempted. */
 const MIN_PEAK_ENERGY = 10;
@@ -26,32 +24,95 @@ const MIN_PEAK_ENERGY = 10;
 const ANALYSIS_INTERVAL_MS = 50;
 
 /**
- * Minimum average normalised score for a chord template match to be accepted.
- * Score = (sum of smoothed chroma values at the 3 chord notes) / (3 × maxEnergy).
- * 0.60 means the three chord notes average at least 60 % of the peak note's energy.
- * This is robust against harmonic bleed (e.g. G's 3rd harmonic → D) because the
- * full chord template must score together — a single boosted harmonic cannot win.
+ * Minimum average normalised score for a chord template match to be accepted
+ * when no chord is currently active (first activation from silence).
+ * Score = (sum of per-tick chroma values at the 3 chord notes) / (3 × maxEnergy).
+ * 0.55 means the three chord notes average at least 55 % of the peak note's energy.
+ * Lowered from 0.60: some chords (e.g. D major on piano) fluctuate between 0.56–0.77
+ * due to overtone overlap, and the stricter 0.60 gate broke consecutive runs mid-chord.
  */
-const CHORD_MIN_SCORE = 0.60;
+const CHORD_MIN_SCORE = 0.55;
+
+/**
+ * Higher score required when *switching* from one active chord to another.
+ * During a piano attack, the mixed signal (decaying old chord + noisy new attack)
+ * can push a wrong-chord template above CHORD_MIN_SCORE but rarely above this
+ * value. A clean sustained chord reliably scores ≥ 0.82.
+ * Using a higher gate here means we never switch through an intermediate wrong
+ * chord: the active chord stays visible until a genuinely confident new chord
+ * is ready to take over directly.
+ */
+const CHORD_SWITCH_SCORE = 0.80;
 
 /**
  * Sliding-window vote: number of recent ticks kept for stability voting.
- * At 50 ms/tick this covers 400 ms of history.
+ * At 50 ms/tick this covers 750 ms of history.
  */
-const CANDIDATE_WINDOW_SIZE = 8;
+const CANDIDATE_WINDOW_SIZE = 15;
 
 /**
- * A chord is activated / switched-to when it wins at least this many ticks in the window.
+ * A chord is activated / switched-to only when it appears in this many *consecutive*
+ * ticks at the tail of the sliding window.
  * Minimum activation latency = CANDIDATE_MIN_WINS × 50 ms = 250 ms.
- * A transient that lasts fewer than CANDIDATE_MIN_WINS ticks can never trigger activation.
+ *
+ * Consecutive (not total-count) voting is the key improvement over the previous approach:
+ * piano attack transients affect only the first 1–3 ticks after a key strike. Because those
+ * wrong-chord ticks are immediately followed by correct-chord ticks, the wrong chord can
+ * never build up a consecutive run of CANDIDATE_MIN_WINS — so it is never activated.
+ * The old count-in-window approach allowed wrong-chord votes to accumulate across the full
+ * window and thus briefly activate a wrong key when the attack transient was long enough.
  */
 const CANDIDATE_MIN_WINS = 5;
 
 /**
- * Active chord is cleared once its vote count in the window drops below this value.
- * Equivalent to ~6–7 consecutive silent ticks ≈ 300–350 ms of silence.
+ * Onset detection: if the raw (unsmoothed, single-tick) chroma max energy rises by
+ * more than this factor in one 50 ms tick, a new chord onset is assumed.
+ * On onset the candidate vote window is flushed so that decaying strings from
+ * the previously-released chord cannot score into the new chord's template matches.
+ *
+ * Root cause this solves: A major {A, C#, E} and E major {E, G#, B} share no
+ * pitch class, but C# minor {C#, E, G#} has exactly the two that overlap the
+ * transition (C# decaying from A major + G# freshly struck in E major + shared E).
+ * During the decay/attack overlap C# minor genuinely scores ≥ 0.85, far above
+ * CHORD_SWITCH_SCORE — no score gate can block it. Flushing the buffers on onset
+ * makes the new chord start with a clean slate so the old decay is invisible.
+ *
+ * 1.5 = 50 % increase triggers an onset. Raise toward 2.0 if false onsets occur
+ * with loud sustain pedal resonance; lower toward 1.3 if soft playing misses onsets.
  */
-const CANDIDATE_DEACTIVATE_MIN = 3;
+const ONSET_RATIO = 1.5;
+
+/**
+ * Minimum time in milliseconds a chord must remain visible before it can be
+ * replaced by a newly confirmed chord.
+ * This is the primary safeguard against display flutter: even if the algorithm
+ * confidently detects a new chord within 250 ms, it cannot update the display
+ * until the current chord has been shown for at least this long.
+ * Effect: if the musician plays one chord every 1 s, the display updates at most
+ * once every MIN_HOLD_MS — matching the actual playing tempo.
+ * First activation from silence is not gated (MIN_HOLD_MS only applies to
+ * chord-to-chord switches).
+ */
+const MIN_HOLD_MS = 750;
+
+/**
+ * Milliseconds without a confirmed chord win before the active chord display
+ * is cleared. The "last confirmed" timestamp is updated on any tick where the
+ * active chord is the best match and has score ≥ CHORD_MIN_SCORE.
+ * When the player releases the keys (or a different chord dominates), confirmations
+ * stop updating. After DEACTIVATE_INACTIVITY_MS without confirmation, the display clears.
+ *
+ * Advantages over raw-energy or bestIdx-based approaches:
+ *  • Immune to room reverb and piano string resonance (no energy threshold needed).
+ *  • Works at any timer resolution (Android Chrome fires at ~100 ms, not 50 ms).
+ *  • During a chord switch the new chord quickly re-activates and replaces the
+ *    old one directly — the timer is just a safety net if no new chord follows.
+ *
+ * With analyser.smoothingTimeConstant = 0.2, the AnalyserNode energy clears in ~1 tick after key
+ * release, so the timer starts almost immediately. 300 ms gives a comfortable
+ * buffer without a noticeable display lag on both desktop and Android.
+ */
+const DEACTIVATE_INACTIVITY_MS = 300;
 
 // ── Chord templates ──────────────────────────────────────────────────────────
 
@@ -113,11 +174,12 @@ export function useChromaDetection(): PitchDetectionResult {
     const isActiveRef      = useRef(false);
     const binToPcRef       = useRef<(number | null)[] | null>(null);
     const binsPerPcRef     = useRef<number[]>(new Array(12).fill(0));
-    const chromaHistRef    = useRef<number[][]>([]);
     // Chord template matching state
-    const recentCandidatesRef = useRef<number[]>([]); // sliding-window vote buffer (−1 = no chord)
-    const activeChordRef   = useRef(-1);  // index of currently reported chord (−1 = none)
-    const logTickRef       = useRef(0);
+    const recentCandidatesRef    = useRef<number[]>([]); // sliding-window vote buffer (−1 = no chord)
+    const activeChordRef         = useRef(-1);  // index of currently reported chord (−1 = none)
+    const prevRawMaxRef          = useRef(0);   // raw chroma max of previous tick (onset detection)
+    const lastActivationTimeRef   = useRef(0);   // Date.now() when the displayed chord last changed
+    const lastConfirmedTickRef    = useRef(0);   // Date.now() of last tick where active chord still won
 
     // ── stop ─────────────────────────────────────────────────────────────────
 
@@ -130,10 +192,12 @@ export function useChromaDetection(): PitchDetectionResult {
         streamRef.current   = null;
         audioCtxRef.current = null;
         analyserRef.current = null;
-        isActiveRef.current       = false;
-        chromaHistRef.current     = [];
-        recentCandidatesRef.current = [];
-        activeChordRef.current    = -1;
+        isActiveRef.current         = false;
+        recentCandidatesRef.current  = [];
+        activeChordRef.current       = -1;
+        prevRawMaxRef.current        = 0;
+        lastActivationTimeRef.current  = 0;
+        lastConfirmedTickRef.current   = 0;
 
         setPressedNotes(new Set());
         setStatus('idle');
@@ -171,8 +235,13 @@ export function useChromaDetection(): PitchDetectionResult {
 
             const analyser = ctx.createAnalyser();
             analyser.fftSize = FFT_SIZE;
-            // Light browser-side smoothing; we do our own rolling average on top
-            analyser.smoothingTimeConstant = 0.5;
+            // Minimal browser-side smoothing: a lower value lets the FFT energy drop
+            // quickly after key release so that raw-energy-based deactivation responds
+            // within ~150 ms instead of 400–600 ms (especially important on Android,
+            // where timer intervals are ~100 ms rather than the nominal 50 ms).
+            // Chord-detection noise is handled by the score gates and stability voting,
+            // so a low smoothingTimeConstant here does not hurt recognition quality.
+            analyser.smoothingTimeConstant = 0.2;
             analyserRef.current = analyser;
 
             // Connect source → analyser only (no output → no microphone feedback)
@@ -215,19 +284,19 @@ export function useChromaDetection(): PitchDetectionResult {
                     binsPerPc[pc] > 0 ? s / binsPerPc[pc] : 0
                 );
 
-                // Rolling smoothing over last SMOOTHING_FRAMES frames
-                chromaHistRef.current.push(chroma);
-                if (chromaHistRef.current.length > SMOOTHING_FRAMES) {
-                    chromaHistRef.current.shift();
+                // ── Onset detection ───────────────────────────────────────────────────
+                // When raw chroma max jumps by ONSET_RATIO in one tick, a new chord
+                // onset is assumed. Flush the vote window so that decaying strings from
+                // the previously-released chord do not score into the new chord's
+                // template matches.
+                // The active chord ref is deliberately NOT cleared here: the display
+                // continues showing the old chord until the new chord has accumulated
+                // CANDIDATE_MIN_WINS confirmed consecutive ticks.
+                const rawMax = Math.max(...chroma);
+                if (rawMax > prevRawMaxRef.current * ONSET_RATIO && rawMax >= MIN_PEAK_ENERGY) {
+                    recentCandidatesRef.current = [];
                 }
-                const nFrames  = chromaHistRef.current.length;
-                const smoothed = new Array(12).fill(0);
-                for (const frame of chromaHistRef.current) {
-                    for (let pc = 0; pc < 12; pc++) smoothed[pc] += frame[pc];
-                }
-                for (let pc = 0; pc < 12; pc++) smoothed[pc] /= nFrames;
-
-                const maxEnergy = Math.max(...smoothed);
+                prevRawMaxRef.current = rawMax;
 
                 // ── Chord template matching ───────────────────────────────────
                 // Score each chord: average normalised energy of its 3 notes.
@@ -236,11 +305,11 @@ export function useChromaDetection(): PitchDetectionResult {
                 let bestIdx   = -1;
                 let bestScore = 0;
 
-                if (maxEnergy >= MIN_PEAK_ENERGY) {
+                if (rawMax >= MIN_PEAK_ENERGY) {
                     for (let i = 0; i < CHORD_TEMPLATES.length; i++) {
                         const score =
-                            CHORD_TEMPLATES[i].notes.reduce((s, pc) => s + smoothed[pc], 0) /
-                            (CHORD_TEMPLATES[i].notes.length * maxEnergy);
+                            CHORD_TEMPLATES[i].notes.reduce((s, pc) => s + chroma[pc], 0) /
+                            (CHORD_TEMPLATES[i].notes.length * rawMax);
                         if (score > bestScore) { bestScore = score; bestIdx = i; }
                     }
                     if (bestScore < CHORD_MIN_SCORE) bestIdx = -1;
@@ -248,69 +317,119 @@ export function useChromaDetection(): PitchDetectionResult {
 
                 // ── Sliding-window stability vote ─────────────────────────────
                 // Push this tick's best candidate into the rolling window.
-                // A chord is only activated/switched-to when it wins the majority
-                // of recent ticks, which filters out sub-200 ms transients while
-                // keeping minimum activation latency at CANDIDATE_MIN_WINS × 50 ms.
+                // A chord is activated / switched-to only when it appears in
+                // CANDIDATE_MIN_WINS *consecutive* ticks at the tail of the window.
+                // This prevents attack transients (which last 1–3 ticks) from ever
+                // accumulating enough wins to trigger a spurious key change.
                 recentCandidatesRef.current.push(bestIdx);
                 if (recentCandidatesRef.current.length > CANDIDATE_WINDOW_SIZE) {
                     recentCandidatesRef.current.shift();
                 }
 
-                // Count votes for each chord index in the window (−1 excluded)
-                const voteCounts = new Map<number, number>();
-                for (const idx of recentCandidatesRef.current) {
-                    if (idx !== -1) voteCounts.set(idx, (voteCounts.get(idx) ?? 0) + 1);
+                // Count consecutive wins of bestIdx at the tail of the vote window.
+                const cands = recentCandidatesRef.current;
+                let consecutiveTail = 0;
+                if (bestIdx !== -1) {
+                    for (let i = cands.length - 1; i >= 0; i--) {
+                        if (cands[i] === bestIdx) consecutiveTail++;
+                        else break;
+                    }
                 }
-
-                // Find the dominant chord (most votes, must reach CANDIDATE_MIN_WINS)
-                let dominantIdx   = -1;
-                let dominantCount = 0;
-                for (const [idx, count] of voteCounts) {
-                    if (count > dominantCount) { dominantCount = count; dominantIdx = idx; }
-                }
-                if (dominantCount < CANDIDATE_MIN_WINS) dominantIdx = -1;
-
-                // ── Activate / switch ─────────────────────────────────────────
-                if (dominantIdx !== -1 && dominantIdx !== activeChordRef.current) {
-                    const tmpl = CHORD_TEMPLATES[dominantIdx];
-                    activeChordRef.current = dominantIdx;
-                    setPressedNotes(new Set(tmpl.midiNotes));
-                    // console.log(
-                    //     `[ChromaDetection] Chord: ${tmpl.label}` +
-                    //     ` | score: ${bestScore.toFixed(2)}` +
-                    //     ` | maxEnergy: ${maxEnergy.toFixed(1)}` +
-                    //     ` | votes: ${dominantCount}/${recentCandidatesRef.current.length}`
-                    // );
-                }
-
-                // ── Deactivate ────────────────────────────────────────────────
-                // Clear the active chord only when no chord is dominant AND the
-                // active chord's own vote count has fallen below the deactivation
-                // threshold (i.e. the musician has released the keys long enough).
-                if (activeChordRef.current !== -1 && dominantIdx === -1) {
-                    const activeCount = voteCounts.get(activeChordRef.current) ?? 0;
-                    if (activeCount < CANDIDATE_DEACTIVATE_MIN) {
-                        activeChordRef.current = -1;
-                        setPressedNotes(new Set());
-                        // console.log('[ChromaDetection] Chord cleared');
+                // ── Score gate: three gating rules ────────────────────────────
+                //  A) Confirmation — same chord as currently active: a single tick
+                //     with score ≥ CHORD_MIN_SCORE suffices. No window run required
+                //     so a momentary score dip cannot cause a premature CLEAR.
+                //  B) Fresh activation — no chord active: require CANDIDATE_MIN_WINS
+                //     consecutive wins to avoid reacting to transients.
+                //  C) Switch — different chord while one is active: same run length
+                //     but stricter CHORD_SWITCH_SCORE blocks attack-noise artefacts.
+                let dominantIdx = -1;
+                if (bestIdx !== -1) {
+                    if (bestIdx === activeChordRef.current) {
+                        // A) Confirmation of active chord — single tick, relaxed threshold.
+                        if (bestScore >= CHORD_MIN_SCORE) dominantIdx = bestIdx;
+                    } else if (consecutiveTail >= CANDIDATE_MIN_WINS) {
+                        // B) Fresh activation or C) chord switch.
+                        const activateThreshold =
+                            activeChordRef.current === -1 ? CHORD_MIN_SCORE : CHORD_SWITCH_SCORE;
+                        if (bestScore >= activateThreshold) dominantIdx = bestIdx;
                     }
                 }
 
-                // ── Periodic debug log (every ~1 s) ──────────────────────────
-                logTickRef.current++;
-                if (logTickRef.current % 20 === 0) {
-                    const top3 = [...smoothed]
-                        .map((e, pc) => ({ pc, e }))
-                        .sort((a, b) => b.e - a.e)
-                        .slice(0, 3)
-                        .map(({ pc, e }) => `${NOTE_NAMES[pc]}:${e.toFixed(1)}`);
-                    const bestLabel = bestIdx >= 0 ? CHORD_TEMPLATES[bestIdx].label : '—';
+                // ── Activate / switch ─────────────────────────────────────────
+                // Gate 1 (score + consecutive wins): handled above via dominantIdx.
+                // Gate 2 (minimum hold time): the current chord must have been visible
+                //   for at least MIN_HOLD_MS before it can be replaced. This bounds the
+                //   display update rate to the musician's actual playing tempo and prevents
+                //   any transient from appearing and vanishing within a fraction of a second.
+                //   First activation from silence (activeChordRef === −1) is not gated.
+                const heldLongEnough =
+                    activeChordRef.current === -1 ||
+                    (Date.now() - lastActivationTimeRef.current) >= MIN_HOLD_MS;
+
+                if (dominantIdx !== -1 && dominantIdx !== activeChordRef.current && heldLongEnough) {
+                    const tmpl = CHORD_TEMPLATES[dominantIdx];
+                    activeChordRef.current = dominantIdx;
+                    lastActivationTimeRef.current = Date.now();
+                    lastConfirmedTickRef.current  = Date.now();
+                    setPressedNotes(new Set(tmpl.midiNotes));
                     // console.log(
-                    //     `[ChromaDetection] maxEnergy: ${maxEnergy.toFixed(1)}` +
-                    //     ` | top: ${top3.join('  ')}` +
-                    //     ` | best: ${bestLabel} (${bestScore.toFixed(2)})`
+                    //     `%c[ChordDet] ACTIVATE ${tmpl.label}` +
+                    //     ` | score=${bestScore.toFixed(2)}` +
+                    //     ` | wins=${consecutiveTail}`,
+                    //     'color:#22c55e;font-weight:bold'
                     // );
                 }
+
+                // Refresh the confirmation timestamp while the active chord keeps winning.
+                // As soon as the player releases the keys the consecutive-win run breaks,
+                // dominantIdx falls back to −1, and this branch stops executing — starting
+                // the DEACTIVATE_INACTIVITY_MS countdown below.
+                if (dominantIdx !== -1 && dominantIdx === activeChordRef.current) {
+                    lastConfirmedTickRef.current = Date.now();
+                }
+
+                // ── Deactivate ────────────────────────────────────────────────
+                // Clear the display once no tick has confirmed the active chord for
+                // DEACTIVATE_INACTIVITY_MS. This is immune to room reverb and piano
+                // string resonance: it measures elapsed wall-clock time since the last
+                // vote confirmation, not absolute energy levels.
+                // Also resets the hold timer so the next chord activates immediately.
+                if (activeChordRef.current !== -1 &&
+                    (Date.now() - lastConfirmedTickRef.current) >= DEACTIVATE_INACTIVITY_MS) {
+                    // const msHeld = Date.now() - lastActivationTimeRef.current;
+                    // console.log(
+                    //     `%c[ChordDet] CLEAR` +
+                    //     ` | shown for ${msHeld} ms` +
+                    //     ` | inactivity=${Date.now() - lastConfirmedTickRef.current} ms`,
+                    //     'color:#f87171;font-weight:bold'
+                    // );
+                    activeChordRef.current = -1;
+                    lastActivationTimeRef.current = 0;
+                    // Flush the voting window so re-activation after silence requires
+                    // a fresh run of CANDIDATE_MIN_WINS consecutive wins, not stale votes.
+                    recentCandidatesRef.current = [];
+                    setPressedNotes(new Set());
+                }
+
+                // ── Per-tick debug log ────────────────────────────────────────
+                // if (rawMax >= MIN_PEAK_ENERGY || activeChordRef.current >= 0) {
+                //     const activeLabel  = activeChordRef.current >= 0
+                //         ? CHORD_TEMPLATES[activeChordRef.current].label : '—';
+                //     const bestLabel    = bestIdx >= 0 ? CHORD_TEMPLATES[bestIdx].label : '—';
+                //     const domLabel     = dominantIdx >= 0 ? CHORD_TEMPLATES[dominantIdx].label : '—';
+                //     const msSinceConf  = activeChordRef.current >= 0
+                //         ? Date.now() - lastConfirmedTickRef.current : 0;
+                //     console.log(
+                //         `[ChordDet] tick` +
+                //         ` | rawMax=${rawMax.toFixed(1)}` +
+                //         ` | best=${bestLabel}(${bestScore.toFixed(2)})` +
+                //         ` | tail=${consecutiveTail}` +
+                //         ` | dom=${domLabel}` +
+                //         ` | active=${activeLabel}` +
+                //         ` | msNoConf=${msSinceConf}`
+                //     );
+                // }
 
             }, ANALYSIS_INTERVAL_MS);
 

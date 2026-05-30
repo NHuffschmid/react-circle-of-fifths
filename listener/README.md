@@ -18,21 +18,33 @@ An `AnalyserNode` computes a Fast Fourier Transform (FFT) with a window size of 
 
 ### 3. Chroma vector
 
-Each FFT bin is mapped to one of the 12 chromatic pitch classes (C, C#, D, …, B) by converting the bin's frequency to the nearest MIDI note (`12 × log₂(f / 440) + 69`) and taking `note mod 12`. The average energy per pitch class is computed, normalised by the number of bins it covers, and smoothed over a rolling window of 3 frames (~150 ms) to suppress attack transients.
+Each FFT bin is mapped to one of the 12 chromatic pitch classes (C, C#, D, …, B) by converting the bin's frequency to the nearest MIDI note (`12 × log₂(f / 440) + 69`) and taking `note mod 12`. The average energy per pitch class is computed and normalised by the number of bins it covers. No rolling average is applied — each tick uses the raw per-class energy from the current AnalyserNode frame. The `AnalyserNode.smoothingTimeConstant = 0.2` provides sufficient inter-frame noise suppression and allows energy to drop within ~150 ms after key release.
 
 ### 4. Chord template matching
 
-The smoothed chroma vector is compared against all 24 major and minor triad templates (one per key in circle-of-fifths order). For each candidate chord the score is:
+The chroma vector is compared against all 24 major and minor triad templates (one per key in circle-of-fifths order). For each candidate chord the score is:
 
 ```
 score = (energy[note1] + energy[note2] + energy[note3]) / (3 × maxEnergy)
 ```
 
-A score ≥ 0.60 means the three chord notes together average at least 60 % of the strongest pitch class's energy. The highest-scoring template is selected. Harmonic overtone bleed (e.g. G's 3rd harmonic landing on D) cannot push a wrong chord above threshold because all three template notes must score together.
+A score ≥ 0.55 means the three chord notes together average at least 55 % of the strongest pitch class's energy. The highest-scoring template is selected. Harmonic overtone bleed (e.g. G's 3rd harmonic landing on D) cannot push a wrong chord above threshold because all three template notes must score together.
 
-### 5. Stability voting (sliding window)
+### 5. Stability voting, onset detection, and display timing
 
-The last 8 tick results (400 ms) are kept in a rolling window. A chord is activated or switched-to only when it wins at least 5 of those 8 ticks (~250 ms minimum latency). Piano attack transients that dominate for only 1–3 ticks therefore never trigger a key change, eliminating the momentary flicker that occurs when a chord is struck. Once active, the chord is cleared only when its own vote count in the window drops below 3 (~300–350 ms of silence).
+The last 15 tick results (~750 ms) are kept in a rolling window. Three distinct gating rules control when the display changes:
+
+**A — Confirmation** (same chord as currently displayed): a single tick with score ≥ `CHORD_MIN_SCORE` (0.55) resets the inactivity timer and keeps the chord visible. No window run required. This prevents a momentary score dip from causing a premature clear while the chord is still audible.
+
+**B — Fresh activation** (nothing displayed): the chord must win `CANDIDATE_MIN_WINS` = 5 *consecutive* ticks at the tail of the window (~250 ms). Consecutive voting is stricter than a majority count: piano attack transients affect only the first 1–3 ticks and are immediately followed by the correct chord's ticks, so a wrong transient chord can never build a sufficient run.
+
+**C — Chord switch** (different chord while one is displayed): same 5-consecutive-win requirement, but the score must additionally reach `CHORD_SWITCH_SCORE` (0.80). During a piano attack the mixed signal (decaying old chord + noisy new onset) typically scores 0.62–0.72; a cleanly sustained chord reliably scores ≥ 0.82. The displayed chord therefore never switches through a transition artefact.
+
+**Onset detection**: if the raw (single-tick) chroma max energy rises by more than `ONSET_RATIO` (1.5×) in one tick, a new chord onset is detected. The candidate vote window is immediately flushed. This eliminates the “C# minor artefact” that occurs when the decaying tail of chord A overlaps with the attack of chord B and a wrong intermediate chord genuinely scores above the switch threshold.
+
+**Minimum hold time**: a newly confirmed chord cannot replace the displayed chord until the current chord has been visible for at least `MIN_HOLD_MS` (750 ms). This bounds the display update rate to the musician's actual playing tempo and suppresses flutter on fast repeated detection events. First activation from silence is not gated.
+
+**Inactivity deactivation**: when no tick confirms the active chord for `DEACTIVATE_INACTIVITY_MS` (300 ms), the display clears. This is immune to room reverb and piano string resonance — the timer measures wall-clock time since the last confirmation, not signal energy levels.
 
 ### 6. Key display
 
@@ -80,15 +92,17 @@ The UI automatically detects the browser language and pre-selects it if it is on
 
 ## Configuration (useChromaDetection.ts)
 
-| Constant | Default | Description |
+| Constant | Value | Description |
 |---|---|---|
 | `FFT_SIZE` | 8192 | FFT window size; higher = better frequency resolution |
-| `SMOOTHING_FRAMES` | 3 | Rolling average over this many 50 ms frames |
-| `MIN_PEAK_ENERGY` | 10 | Minimum peak energy before chord detection runs |
-| `CHORD_MIN_SCORE` | 0.60 | Minimum template match score (0–1) |
-| `CANDIDATE_WINDOW_SIZE` | 8 | Number of recent ticks kept for stability voting (~400 ms) |
-| `CANDIDATE_MIN_WINS` | 5 | Votes required in the window to activate a chord (~250 ms) |
-| `CANDIDATE_DEACTIVATE_MIN` | 3 | Vote count below which the active chord is cleared |
+| `MIN_PEAK_ENERGY` | 10 | Minimum peak chroma energy before chord detection runs |
+| `CHORD_MIN_SCORE` | 0.55 | Minimum template score to confirm or freshly activate a chord |
+| `CHORD_SWITCH_SCORE` | 0.80 | Minimum score required to *switch* to a different chord (blocks attack-noise artefacts) |
+| `CANDIDATE_WINDOW_SIZE` | 15 | Sliding window size in ticks (~750 ms of history) |
+| `CANDIDATE_MIN_WINS` | 5 | Consecutive tail wins required for fresh activation or chord switch (~250 ms) |
+| `ONSET_RATIO` | 1.5 | Chroma energy rise factor that triggers onset detection (flushes the vote window) |
+| `MIN_HOLD_MS` | 750 | Minimum display time in ms before a chord switch is allowed |
+| `DEACTIVATE_INACTIVITY_MS` | 300 | Ms without a chord confirmation before the display clears |
 | `ANALYSIS_INTERVAL_MS` | 50 | Milliseconds between analysis ticks |
 
 ---

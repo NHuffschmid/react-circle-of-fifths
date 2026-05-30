@@ -23,7 +23,7 @@ function detectBrowserLanguage(): Language {
     return SUPPORTED_LANGUAGES.includes(lang) ? lang : 'en';
 }
 
-const QR_URL = 'https://nhuffschmid.github.io/react-circle-of-fifths/';
+const QR_URL = window.location.href;
 
 // ── Localised error messages ──────────────────────────────────────────────────
 

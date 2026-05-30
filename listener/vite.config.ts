@@ -11,6 +11,9 @@ const reactDomPath = path.resolve(__dirname, 'node_modules/react-dom');
 export default defineConfig({
   base: '/react-circle-of-fifths/',
   plugins: [react()],
+  server: {
+    host: true
+  },
   resolve: {
     alias: {
       'react-piano-keyboard': reactPianoKeyboardPath,
