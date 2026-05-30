@@ -36,9 +36,9 @@ The last 15 tick results (~750 ms) are kept in a rolling window. Three distinct 
 
 **A — Confirmation** (same chord as currently displayed): a single tick with score ≥ `CHORD_MIN_SCORE` (0.55) resets the inactivity timer and keeps the chord visible. No window run required. This prevents a momentary score dip from causing a premature clear while the chord is still audible.
 
-**B — Fresh activation** (nothing displayed): the chord must win `CANDIDATE_MIN_WINS` = 10 *consecutive* ticks at the tail of the window (~500 ms). Consecutive voting is stricter than a majority count: piano attack transients affect only the first 1–3 ticks and are immediately followed by the correct chord's ticks, so a wrong transient chord can never build a sufficient run.
+**B — Fresh activation** (nothing displayed): the chord must win `CANDIDATE_MIN_WINS` = 5 *consecutive* ticks at the tail of the window (~250 ms). Consecutive voting is stricter than a majority count: piano attack transients affect only the first 1–3 ticks and are immediately followed by the correct chord's ticks, so a wrong transient chord can never build a sufficient run.
 
-**C — Chord switch** (different chord while one is displayed): same 10-consecutive-win requirement, but the score must additionally reach `CHORD_SWITCH_SCORE` (0.80). During a piano attack the mixed signal (decaying old chord + noisy new onset) typically scores 0.62–0.72; a cleanly sustained chord reliably scores ≥ 0.82. The displayed chord therefore never switches through a transition artefact.
+**C — Chord switch** (different chord while one is displayed): same 5-consecutive-win requirement, but the score must additionally reach `CHORD_SWITCH_SCORE` (0.80). During a piano attack the mixed signal (decaying old chord + noisy new onset) typically scores 0.62–0.72; a cleanly sustained chord reliably scores ≥ 0.82. The displayed chord therefore never switches through a transition artefact.
 
 **Onset detection**: if the raw (single-tick) chroma max energy rises by more than `ONSET_RATIO` (1.5×) in one tick, a new chord onset is detected. The candidate vote window is immediately flushed. This eliminates the “C# minor artefact” that occurs when the decaying tail of chord A overlaps with the attack of chord B and a wrong intermediate chord genuinely scores above the switch threshold.
 
