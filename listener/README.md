@@ -99,9 +99,9 @@ The UI automatically detects the browser language and pre-selects it if it is on
 | `CHORD_MIN_SCORE` | 0.55 | Minimum template score to confirm or freshly activate a chord |
 | `CHORD_SWITCH_SCORE` | 0.80 | Minimum score required to *switch* to a different chord (blocks attack-noise artefacts) |
 | `CANDIDATE_WINDOW_SIZE` | 15 | Sliding window size in ticks (~750 ms of history) |
-| `CANDIDATE_MIN_WINS` | 10 | Consecutive tail wins required for fresh activation or chord switch (~500 ms) |
+| `CANDIDATE_MIN_WINS` | 5 | Consecutive tail wins required for fresh activation or chord switch (~250 ms) |
 | `ONSET_RATIO` | 1.5 | Chroma energy rise factor that triggers onset detection (flushes the vote window) |
-| `MIN_HOLD_MS` | 1500 | Minimum display time in ms before a chord switch is allowed |
+| `MIN_HOLD_MS` | 750 | Minimum display time in ms before a chord switch is allowed |
 | `DEACTIVATE_INACTIVITY_MS` | 300 | Ms without a chord confirmation before the display clears |
 | `ANALYSIS_INTERVAL_MS` | 50 | Milliseconds between analysis ticks |
 
