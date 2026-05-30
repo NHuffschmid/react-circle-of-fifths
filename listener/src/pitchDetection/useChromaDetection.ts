@@ -97,11 +97,10 @@ const MIN_HOLD_MS = 750;
 
 /**
  * Milliseconds without a confirmed chord win before the active chord display
- * is cleared. The "last confirmed" timestamp is updated every tick in which
- * the active chord still has CANDIDATE_MIN_WINS consecutive wins at the voting
- * window tail.  As soon as the player releases the keys the consecutive run
- * breaks and the timestamp stops updating — after DEACTIVATE_INACTIVITY_MS the
- * display clears.
+ * is cleared. The "last confirmed" timestamp is updated on any tick where the
+ * active chord is the best match and has score ≥ CHORD_MIN_SCORE.
+ * When the player releases the keys (or a different chord dominates), confirmations
+ * stop updating. After DEACTIVATE_INACTIVITY_MS without confirmation, the display clears.
  *
  * Advantages over raw-energy or bestIdx-based approaches:
  *  • Immune to room reverb and piano string resonance (no energy threshold needed).
@@ -109,7 +108,7 @@ const MIN_HOLD_MS = 750;
  *  • During a chord switch the new chord quickly re-activates and replaces the
  *    old one directly — the timer is just a safety net if no new chord follows.
  *
- * With SMOOTHING_FRAMES=1, the AnalyserNode energy clears in ~1 tick after key
+ * With analyser.smoothingTimeConstant = 0.2, the AnalyserNode energy clears in ~1 tick after key
  * release, so the timer starts almost immediately. 300 ms gives a comfortable
  * buffer without a noticeable display lag on both desktop and Android.
  */
@@ -240,7 +239,7 @@ export function useChromaDetection(): PitchDetectionResult {
             // quickly after key release so that raw-energy-based deactivation responds
             // within ~150 ms instead of 400–600 ms (especially important on Android,
             // where timer intervals are ~100 ms rather than the nominal 50 ms).
-            // Chord-detection noise is handled by our own SMOOTHING_FRAMES rolling average,
+            // Chord-detection noise is handled by the score gates and stability voting,
             // so a low smoothingTimeConstant here does not hurt recognition quality.
             analyser.smoothingTimeConstant = 0.2;
             analyserRef.current = analyser;
