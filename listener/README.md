@@ -42,7 +42,7 @@ The last 15 tick results (~750 ms) are kept in a rolling window. Three distinct 
 
 **Onset detection**: if the raw (single-tick) chroma max energy rises by more than `ONSET_RATIO` (1.5×) in one tick, a new chord onset is detected. The candidate vote window is immediately flushed. This eliminates the “C# minor artefact” that occurs when the decaying tail of chord A overlaps with the attack of chord B and a wrong intermediate chord genuinely scores above the switch threshold.
 
-**Minimum hold time**: a newly confirmed chord cannot replace the displayed chord until the current chord has been visible for at least `MIN_HOLD_MS` (1 500 ms). This bounds the display update rate to the musician's actual playing tempo and suppresses flutter on fast repeated detection events. First activation from silence is not gated.
+**Minimum hold time**: a newly confirmed chord cannot replace the displayed chord until the current chord has been visible for at least `MIN_HOLD_MS` (750 ms). This bounds the display update rate to the musician's actual playing tempo and suppresses flutter on fast repeated detection events. First activation from silence is not gated.
 
 **Inactivity deactivation**: when no tick confirms the active chord for `DEACTIVATE_INACTIVITY_MS` (300 ms), the display clears. This is immune to room reverb and piano string resonance — the timer measures wall-clock time since the last confirmation, not signal energy levels.
 
