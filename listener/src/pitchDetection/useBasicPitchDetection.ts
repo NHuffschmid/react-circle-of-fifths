@@ -36,11 +36,19 @@ const BP_SAMPLE_RATE = 22_050;
  */
 const MODEL_URL = `${import.meta.env.BASE_URL}basic-pitch-model/model.json`;
 
-/** Length of the rolling audio buffer that is analysed on each tick (seconds). */
-const BUFFER_SEC = 2.0;
+/**
+ * Length of the rolling audio buffer that is analysed on each tick (seconds).
+ * Smaller windows improve responsiveness and reduce inference cost, but if this
+ * gets too short polyphonic note estimates become unstable.
+ */
+const BUFFER_SEC = 0.9;
 
-/** How often the analysis loop runs (milliseconds). Effective latency ≈ STEP_MS + inference time. */
-const STEP_MS = 400;
+/**
+ * How often the analysis loop runs (milliseconds).
+ * Lower values improve responsiveness as long as inference time stays below the
+ * tick interval.
+ */
+const STEP_MS = 120;
 
 /** BasicPitch onset detection threshold (0–1). Raise to reduce false onsets. */
 const ONSET_THR = 0.3;
@@ -51,12 +59,15 @@ const FRAME_THR = 0.25;
 /** Minimum note duration in model frames (~23 ms/frame at 22 050 Hz / 512 hop). */
 const MIN_NOTE_FRAMES = 3;
 
+/** Minimum amount of buffered audio required before the first inference starts. */
+const MIN_ANALYSIS_SEC = 0.35;
+
 /**
  * A note is considered "currently active" when its end time falls within the last
  * NOTE_ACTIVE_WINDOW_S seconds of the analysed buffer.
  * Increase if notes are dropping out too early; decrease to react faster to release.
  */
-const NOTE_ACTIVE_WINDOW_S = 0.55;
+const NOTE_ACTIVE_WINDOW_S = 0.25;
 
 // ── Hook ─────────────────────────────────────────────────────────────────────
 
@@ -134,7 +145,7 @@ export function useBasicPitchDetection(): PitchDetectionResult {
             //    Note: ScriptProcessorNode is deprecated but has universal browser support.
             //    Migration to AudioWorkletNode can be done without changing the rest of
             //    this hook (only the capture section needs to change).
-            const CHUNK_SIZE = 4096; // samples per callback at browser SR
+            const CHUNK_SIZE = 2048; // samples per callback at browser SR
             const maxChunks  = Math.ceil((BUFFER_SEC * ctx.sampleRate) / CHUNK_SIZE);
 
             const processor = ctx.createScriptProcessor(CHUNK_SIZE, 1, 1);
@@ -164,7 +175,6 @@ export function useBasicPitchDetection(): PitchDetectionResult {
             intervalRef.current = setInterval(async () => {
                 if (!isActiveRef.current || isAnalyzingRef.current) return;
                 const chunks = samplesRef.current.slice(); // snapshot
-                if (chunks.length < 2) return;            // not enough audio yet
 
                 isAnalyzingRef.current = true;
                 try {
@@ -174,6 +184,7 @@ export function useBasicPitchDetection(): PitchDetectionResult {
 
                     // Concatenate ring-buffer chunks into a single AudioBuffer at browser SR.
                     const totalLen  = chunks.reduce((s, c) => s + c.length, 0);
+                    if (totalLen < Math.ceil(MIN_ANALYSIS_SEC * ctx2.sampleRate)) return;
                     const nativeBuf = ctx2.createBuffer(1, totalLen, ctx2.sampleRate);
                     const nativeData = nativeBuf.getChannelData(0);
                     let offset = 0;
