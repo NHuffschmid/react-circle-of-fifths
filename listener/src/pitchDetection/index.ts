@@ -5,7 +5,10 @@
 //   2. Change the import alias below (only this line needs to change).
 //
 // Available engines:
-//   useChromaDetection   – Web Audio FFT chroma (~50 ms latency, no model)
+//   useBasicPitchDetection – @spotify/basic-pitch neural net (~400–600 ms latency,
+//                            polyphonic, full 88-key range, loads TF.js model)
+//   useChromaDetection     – Web Audio FFT chroma (~250 ms latency, triads only,
+//                            no model — fallback / offline use)
 
-export { useChromaDetection as usePitchDetection } from './useChromaDetection';
+export { useBasicPitchDetection as usePitchDetection } from './useBasicPitchDetection';
 export type { PitchDetectionResult, PitchDetectionStatus } from './PitchDetectionTypes';
