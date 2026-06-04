@@ -142,6 +142,77 @@ function freqToMidi(freq: number, a4Hz: number): number {
     return 12 * Math.log2(freq / a4Hz) + 69;
 }
 
+/** Convert a MIDI note number to a frequency in Hz. */
+function midiToFreq(midi: number, a4Hz: number): number {
+    return a4Hz * Math.pow(2, (midi - 69) / 12);
+}
+
+/**
+ * Detect missing bass fundamentals via harmonic series analysis.
+ *
+ * Problem: Standard microphones barely capture fundamentals below 100 Hz (bass register),
+ * but harmonics (2f, 3f, 4f, ...) are clearly audible. This causes C2-E2-G2 bass chords
+ * to be detected as G major (because the 3rd harmonics G3, B3, D4 dominate the spectrum).
+ *
+ * Solution: For each bass note (A0–C3, MIDI 21–48), check if a harmonic series
+ * (2f, 3f, 4f, 5f, 6f, 7f, 8f) is present in the FFT spectrum. If multiple harmonics
+ * are found, reconstruct the missing fundamental and add it to the chroma vector.
+ *
+ * This mimics psychoacoustic "missing fundamental" perception: your brain recognizes
+ * a note from its overtone pattern even when the fundamental is inaudible.
+ *
+ * @param freqData - Raw FFT bin magnitudes (0–255 scale)
+ * @param sampleRate - AudioContext sample rate (typically 48000 Hz)
+ * @param fftSize - FFT size (typically 8192)
+ * @param a4Hz - Concert A reference (typically 440 Hz)
+ * @returns Map of MIDI note → reconstructed energy (0–255 scale)
+ */
+function detectMissingFundamentals(
+    freqData: Uint8Array,
+    sampleRate: number,
+    fftSize: number,
+    a4Hz: number
+): Map<number, number> {
+    const binHz = sampleRate / fftSize;
+    const detected = new Map<number, number>();
+
+    // Scan bass range: A0 (MIDI 21) to C3 (MIDI 48)
+    for (let midiNote = 21; midiNote <= 48; midiNote++) {
+        const fundamentalFreq = midiToFreq(midiNote, a4Hz);
+
+        // Check harmonics 2f through 8f (skip 1f since it's likely missing)
+        // Weight higher harmonics less (they're naturally weaker)
+        let harmonicScore = 0;
+        let harmonicsFound = 0;
+
+        for (let harmonic = 2; harmonic <= 8; harmonic++) {
+            const harmonicFreq = fundamentalFreq * harmonic;
+            if (harmonicFreq > 4200) break; // Outside piano range
+
+            const bin = Math.round(harmonicFreq / binHz);
+            if (bin < freqData.length) {
+                const energy = freqData[bin];
+                if (energy > 15) { // Ignore noise floor
+                    // Weight: 1/harmonic (2f gets weight 0.5, 3f gets 0.33, etc.)
+                    harmonicScore += energy / harmonic;
+                    harmonicsFound++;
+                }
+            }
+        }
+
+        // Require at least 3 harmonics to avoid false positives
+        // Average score must be > 25 (after weighting) to be significant
+        if (harmonicsFound >= 3 && harmonicScore / harmonicsFound > 25) {
+            // Reconstruct the fundamental with confidence proportional to harmonic strength
+            // Cap at 200 to avoid overwhelming direct fundamentals in treble register
+            const reconstructedEnergy = Math.min(harmonicScore, 200);
+            detected.set(midiNote, reconstructedEnergy);
+        }
+    }
+
+    return detected;
+}
+
 /**
  * Build a lookup table: FFT bin index → pitch class (0–11).
  * Returns null for bins outside the piano frequency range (A0 ≈ 27.5 Hz – C8 ≈ 4186 Hz).
@@ -274,7 +345,7 @@ export function useChromaDetection(): PitchDetectionResult {
                 if (!an) return;
                 an.getByteFrequencyData(freqData);
 
-                // Compute per-pitch-class average bin energy (0–255 scale)
+                // ── Phase 1: Standard chroma from FFT bins ────────────────────
                 const chromaSum = new Array(12).fill(0);
                 for (let i = 0; i < freqData.length; i++) {
                     const pc = binToPc[i];
@@ -283,6 +354,34 @@ export function useChromaDetection(): PitchDetectionResult {
                 const chroma = chromaSum.map((s, pc) =>
                     binsPerPc[pc] > 0 ? s / binsPerPc[pc] : 0
                 );
+
+                // ── Phase 2: Add reconstructed bass fundamentals ──────────────
+                // Detect missing fundamentals from harmonic series (e.g., C2 from its
+                // overtones at 130, 195, 260 Hz even when 65 Hz fundamental is inaudible)
+                const missingFundamentals = detectMissingFundamentals(
+                    freqData,
+                    ctx.sampleRate,
+                    FFT_SIZE,
+                    a4Hz
+                );
+
+                // Add reconstructed notes to chroma vector
+                // Weight them equally to direct detections since they represent
+                // psychoacoustically perceived pitch (your ears hear them as fundamentals)
+                for (const [midiNote, energy] of missingFundamentals) {
+                    const pitchClass = midiNote % 12;
+                    // Average the reconstructed energy with existing chroma value
+                    // This prevents double-counting if fundamental was actually present
+                    chroma[pitchClass] = Math.max(chroma[pitchClass], energy);
+                }
+
+                // Debug: Log reconstructed bass fundamentals (uncomment to debug)
+                // if (missingFundamentals.size > 0) {
+                //     const notes = Array.from(missingFundamentals.entries())
+                //         .map(([midi, energy]) => `${NOTE_NAMES[midi % 12]}${Math.floor(midi / 12) - 1}(${energy.toFixed(0)})`)
+                //         .join(', ');
+                //     console.log(`[MissingFundamental] Reconstructed: ${notes}`);
+                // }
 
                 // ── Onset detection ───────────────────────────────────────────────────
                 // When raw chroma max jumps by ONSET_RATIO in one tick, a new chord
