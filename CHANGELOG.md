@@ -3,7 +3,7 @@
 ## [x.x.x]
 
 ### Tech stuff
-- Improved chroma detection in Listener demo app
+- Replaced FFT algorithm in Listener app by BasicPitch
 
 
 ## [0.8.0]
