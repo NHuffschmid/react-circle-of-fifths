@@ -1,6 +1,6 @@
-# Circle of Fifths – Listener App
+﻿# Circle of Fifths – Listener App
 
-A browser-based app that listens to a microphone, detects piano chords in real time, and displays the detected key on an interactive Circle of Fifths.
+A browser-based app that listens to a microphone, detects piano notes in real time using a neural network, and displays the detected key on an interactive Circle of Fifths.
 
 Live demo: <https://nhuffschmid.github.io/react-circle-of-fifths/>
 
@@ -12,43 +12,43 @@ Live demo: <https://nhuffschmid.github.io/react-circle-of-fifths/>
 
 The app requests microphone access via `getUserMedia` with echo cancellation, noise suppression, and auto-gain control all disabled. This gives the cleanest possible signal for musical analysis.
 
-### 2. FFT analysis (Web Audio API)
+Audio is captured with a `ScriptProcessorNode` in chunks of 2 048 samples at the browser's native sample rate (44 100 or 48 000 Hz). Each chunk is appended to a ring buffer that retains the most recent 0.9 seconds of audio.
 
-An `AnalyserNode` computes a Fast Fourier Transform (FFT) with a window size of 8 192 samples every 50 ms. At the browser's native 48 kHz sample rate this gives a frequency resolution of ~5.9 Hz/bin, which is sufficient to reliably separate adjacent piano keys.
+### 2. Resampling
 
-### 3. Chroma vector
+Before every inference run the ring-buffer contents are concatenated into a single `AudioBuffer` at the browser's native sample rate and then resampled to **22 050 Hz** using an `OfflineAudioContext`. This is the sample rate at which the BasicPitch model was trained; the conversion step is required regardless of the device's native rate.
 
-Each FFT bin is mapped to one of the 12 chromatic pitch classes (C, C#, D, …, B) by converting the bin's frequency to the nearest MIDI note (`12 × log₂(f / 440) + 69`) and taking `note mod 12`. The average energy per pitch class is computed and normalised by the number of bins it covers. No rolling average is applied — each tick uses the raw per-class energy from the current AnalyserNode frame. The `AnalyserNode.smoothingTimeConstant = 0.2` provides sufficient inter-frame noise suppression and allows energy to drop within ~150 ms after key release.
+### 3. Neural-network inference (BasicPitch)
 
-### 4. Chord template matching
+The resampled `Float32Array` is fed into the **[@spotify/basic-pitch](https://github.com/spotify/basic-pitch-ts)** TF.js model every 120 ms. The model processes audio in overlapping frames (hop size 512 samples ≈ 23 ms) and produces three output arrays per frame:
 
-The chroma vector is compared against all 24 major and minor triad templates (one per key in circle-of-fifths order). For each candidate chord the score is:
+| Output | Shape per frame | Meaning |
+|---|---|---|
+| `frames` | 88 values | Frame-level probability that each piano key is active |
+| `onsets` | 88 values | Probability that a new note began in this frame |
+| `contours` | 264 values | Sub-semitone pitch bend contour |
 
-```
-score = (energy[note1] + energy[note2] + energy[note3]) / (3 × maxEnergy)
-```
+The 88 outputs cover exactly the full piano range (MIDI 21 – 108, A0 – C8).
 
-A score ≥ 0.55 means the three chord notes together average at least 55 % of the strongest pitch class's energy. The highest-scoring template is selected. Harmonic overtone bleed (e.g. G's 3rd harmonic landing on D) cannot push a wrong chord above threshold because all three template notes must score together.
+### 4. Note decoding
 
-### 5. Stability voting, onset detection, and display timing
+`outputToNotesPoly` converts the per-frame matrices into discrete `NoteEvent` objects using:
 
-The last 15 tick results (~750 ms) are kept in a rolling window. Three distinct gating rules control when the display changes:
+- an onset threshold of **0.30** — minimum onset probability to start a new note
+- a frame threshold of **0.25** — minimum frame probability to sustain an active note
+- a minimum duration of **3 frames** (~70 ms) — short spikes are discarded
 
-**A — Confirmation** (same chord as currently displayed): a single tick with score ≥ `CHORD_MIN_SCORE` (0.55) resets the inactivity timer and keeps the chord visible. No window run required. This prevents a momentary score dip from causing a premature clear while the chord is still audible.
+`addPitchBendsToNoteEvents` attaches pitch-bend contours from the `contours` matrix, and `noteFramesToTime` converts frame indices to absolute timestamps in seconds.
 
-**B — Fresh activation** (nothing displayed): the chord must win `CANDIDATE_MIN_WINS` = 5 *consecutive* ticks at the tail of the window (~250 ms). Consecutive voting is stricter than a majority count: piano attack transients affect only the first 1–3 ticks and are immediately followed by the correct chord's ticks, so a wrong transient chord can never build a sufficient run.
+### 5. Active-note selection
 
-**C — Chord switch** (different chord while one is displayed): same 5-consecutive-win requirement, but the score must additionally reach `CHORD_SWITCH_SCORE` (0.80). During a piano attack the mixed signal (decaying old chord + noisy new onset) typically scores 0.62–0.72; a cleanly sustained chord reliably scores ≥ 0.82. The displayed chord therefore never switches through a transition artefact.
+After each inference, notes whose end time (`startTimeSeconds + durationSeconds`) falls within the last **0.25 s** of the analysed buffer are considered "currently pressed" and reported as a `Set<midiNote>`. Notes that ended before that window are ignored; any note sounding right up to the buffer edge remains visible until it drops out of the window on a subsequent tick.
 
-**Onset detection**: if the raw (single-tick) chroma max energy rises by more than `ONSET_RATIO` (1.5×) in one tick, a new chord onset is detected. The candidate vote window is immediately flushed. This eliminates the “C# minor artefact” that occurs when the decaying tail of chord A overlaps with the attack of chord B and a wrong intermediate chord genuinely scores above the switch threshold.
-
-**Minimum hold time**: a newly confirmed chord cannot replace the displayed chord until the current chord has been visible for at least `MIN_HOLD_MS` (750 ms). This bounds the display update rate to the musician's actual playing tempo and suppresses flutter on fast repeated detection events. First activation from silence is not gated.
-
-**Inactivity deactivation**: when no tick confirms the active chord for `DEACTIVATE_INACTIVITY_MS` (300 ms), the display clears. This is immune to room reverb and piano string resonance — the timer measures wall-clock time since the last confirmation, not signal energy levels.
+This sliding window approach is immune to room reverb and sustain-pedal resonance — it uses note-level timestamps from the model, not raw signal energy.
 
 ### 6. Key display
 
-The detected chord's three MIDI notes are passed as `pressedNotes` to `useCircleOfFifthsDetection`, the same hook used by the Depinus app. That hook matches the pitch classes against tonic-triad and diatonic scale templates and highlights the resulting key(s) on the `CircleOfFifths` SVG component.
+The `Set<midiNote>` is passed as `pressedNotes` to `useCircleOfFifthsDetection`, the same hook used by the main Depinus app. That hook matches the detected pitch classes against tonic-triad and diatonic scale templates and highlights the resulting key(s) on the `CircleOfFifths` SVG component.
 
 ---
 
@@ -58,31 +58,43 @@ The detected chord's three MIDI notes are passed as `pressedNotes` to `useCircle
 getUserMedia
     │
     ▼
-AnalyserNode (FFT 8192)
-    │  every 50 ms
+ScriptProcessorNode (chunk 2048 samples)
+    │  ring buffer — last 0.9 s
     ▼
-useChromaDetection          ← pitchDetection/useChromaDetection.ts
-    │  Set<midiNote>
+OfflineAudioContext resampler → 22 050 Hz Float32Array
+    │
     ▼
-useCircleOfFifthsDetection  ← shared with main Depinus app
+useBasicPitchDetection       ← pitchDetection/useBasicPitchDetection.ts
+    │  every 120 ms
+    │  BasicPitch (TF.js) → frames / onsets / contours
+    │  outputToNotesPoly → NoteEventTime[]
+    │  active-note window → Set<midiNote>
+    ▼
+useCircleOfFifthsDetection   ← shared with main Depinus app
     │  selectedMajorKeys / selectedMinorKeys
     ▼
-CircleOfFifths (SVG)        ← shared React component
+CircleOfFifths (SVG)         ← shared React component
 ```
 
-The pitch-detection engine is isolated behind a single swap point (`pitchDetection/index.ts`). Switching to a different engine (e.g. a machine-learning based approach) requires changing exactly one import line.
+The pitch-detection engine is isolated behind a single swap point (`pitchDetection/index.ts`). The previous FFT-chroma engine (`useChromaDetection.ts`) is still available in the same folder as a lightweight offline fallback — switching back requires changing exactly one import line.
 
 ---
 
 ## Development
 
 ```bash
-npm install
+npm install        # also copies the BasicPitch model to public/basic-pitch-model/
 npm run dev        # start Vite dev server
 npm run build      # production build → dist/
 npm run typecheck  # TypeScript type check without emitting
 npm run deploy     # build + push to GitHub Pages (gh-pages)
 ```
+
+The `postinstall` hook (`scripts/copy-basic-pitch-model.cjs`) copies
+`node_modules/@spotify/basic-pitch/model/*` into `public/basic-pitch-model/` so
+that Vite can serve the TF.js model during development and bundle it into `dist/`
+for production. The folder is listed in `.gitignore` because it is fully derived
+from the npm package.
 
 ### Language support
 
@@ -90,20 +102,35 @@ The UI automatically detects the browser language and pre-selects it if it is on
 
 ---
 
-## Configuration (useChromaDetection.ts)
+## Configuration (useBasicPitchDetection.ts)
 
 | Constant | Value | Description |
 |---|---|---|
-| `FFT_SIZE` | 8192 | FFT window size; higher = better frequency resolution |
-| `MIN_PEAK_ENERGY` | 10 | Minimum peak chroma energy before chord detection runs |
-| `CHORD_MIN_SCORE` | 0.55 | Minimum template score to confirm or freshly activate a chord |
-| `CHORD_SWITCH_SCORE` | 0.80 | Minimum score required to *switch* to a different chord (blocks attack-noise artefacts) |
-| `CANDIDATE_WINDOW_SIZE` | 15 | Sliding window size in ticks (~750 ms of history) |
-| `CANDIDATE_MIN_WINS` | 5 | Consecutive tail wins required for fresh activation or chord switch (~250 ms) |
-| `ONSET_RATIO` | 1.5 | Chroma energy rise factor that triggers onset detection (flushes the vote window) |
-| `MIN_HOLD_MS` | 750 | Minimum display time in ms before a chord switch is allowed |
-| `DEACTIVATE_INACTIVITY_MS` | 300 | Ms without a chord confirmation before the display clears |
+| `BUFFER_SEC` | 0.9 | Rolling audio buffer length analysed per tick (seconds) |
+| `STEP_MS` | 120 | Interval between inference runs (ms); effective latency ≈ `STEP_MS` + inference time |
+| `ONSET_THR` | 0.30 | BasicPitch onset detection threshold (0–1); raise to reduce false note onsets |
+| `FRAME_THR` | 0.25 | BasicPitch frame activation threshold (0–1); raise to suppress ghost/soft notes |
+| `MIN_NOTE_FRAMES` | 3 | Minimum note duration in model frames (~70 ms); shorter events are discarded |
+| `MIN_ANALYSIS_SEC` | 0.35 | Minimum buffered audio required before the first inference starts |
+| `NOTE_ACTIVE_WINDOW_S` | 0.25 | Notes ending within this many seconds of the buffer edge are shown as active |
+| `BP_SAMPLE_RATE` | 22 050 | Model sample rate — fixed; do not change |
+
+### Fallback engine (useChromaDetection.ts)
+
+| Constant | Value | Description |
+|---|---|---|
+| `FFT_SIZE` | 8192 | FFT window size |
+| `CHORD_MIN_SCORE` | 0.55 | Minimum triad template score for activation |
+| `CHORD_SWITCH_SCORE` | 0.80 | Score required to switch to a different chord |
+| `CANDIDATE_MIN_WINS` | 5 | Consecutive ticks required for activation (~250 ms) |
 | `ANALYSIS_INTERVAL_MS` | 50 | Milliseconds between analysis ticks |
+
+To switch back to the FFT-chroma engine, change the re-export in `pitchDetection/index.ts`:
+
+```ts
+// fast, triads only, no ML model, works offline
+export { useChromaDetection as usePitchDetection } from './useChromaDetection';
+```
 
 ---
 
@@ -112,4 +139,6 @@ The UI automatically detects the browser language and pre-selects it if it is on
 - **React** – MIT
 - **qrcode.react** – MIT
 - **Vite** – MIT
+- **@spotify/basic-pitch** – Apache 2.0
+- **@tensorflow/tfjs** – Apache 2.0
 - **Web Audio API** – browser built-in, no license required
