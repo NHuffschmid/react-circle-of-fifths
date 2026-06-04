@@ -20,7 +20,20 @@ An `AnalyserNode` computes a Fast Fourier Transform (FFT) with a window size of 
 
 Each FFT bin is mapped to one of the 12 chromatic pitch classes (C, C#, D, …, B) by converting the bin's frequency to the nearest MIDI note (`12 × log₂(f / 440) + 69`) and taking `note mod 12`. The average energy per pitch class is computed and normalised by the number of bins it covers. No rolling average is applied — each tick uses the raw per-class energy from the current AnalyserNode frame. The `AnalyserNode.smoothingTimeConstant = 0.2` provides sufficient inter-frame noise suppression and allows energy to drop within ~150 ms after key release.
 
-### 4. Chord template matching
+### 4. Bass fundamental reconstruction (harmonic series analysis)
+
+Standard microphones barely capture audio at fundamental frequencies below ~100 Hz. Bass piano notes (A0–C3, ≈ 27–130 Hz) therefore produce almost no energy at their fundamental in the FFT, even though their harmonics (2f, 3f, 4f, …) are clearly present. The consequence is that a bass chord such as C2–E2–G2 is systematically misidentified as G major: the 3rd-harmonic series of C2, E2, and G2 lands on G3, B3, and D4, making G major appear to dominate the chroma vector.
+
+`detectMissingFundamentals` corrects this by mimicking the psychoacoustic *missing fundamental* effect — the brain's ability to recognise a pitch from its overtone pattern even when the fundamental is inaudible:
+
+1. For each bass MIDI note 21–48 (A0–C3), compute the expected frequencies of harmonics 2f through 8f.
+2. For each harmonic that falls within the piano range (below 4 200 Hz), read the FFT bin energy.
+3. If the bin energy exceeds the noise floor (15/255), add a weighted contribution `energy / harmonic` to a running score (higher harmonics are naturally weaker and are down-weighted accordingly).
+4. If at least **3 harmonics** are found and the weighted average score exceeds **25**, the fundamental is declared reconstructed. Its energy is capped at 200 to avoid overshadowing directly captured treble fundamentals.
+
+The reconstructed energies are merged into the chroma vector via `Math.max`, preventing double-counting in the rare cases where the fundamental was actually captured by the microphone.
+
+### 5. Chord template matching
 
 The chroma vector is compared against all 24 major and minor triad templates (one per key in circle-of-fifths order). For each candidate chord the score is:
 
@@ -30,7 +43,7 @@ score = (energy[note1] + energy[note2] + energy[note3]) / (3 × maxEnergy)
 
 A score ≥ 0.55 means the three chord notes together average at least 55 % of the strongest pitch class's energy. The highest-scoring template is selected. Harmonic overtone bleed (e.g. G's 3rd harmonic landing on D) cannot push a wrong chord above threshold because all three template notes must score together.
 
-### 5. Stability voting, onset detection, and display timing
+### 6. Stability voting, onset detection, and display timing
 
 The last 15 tick results (~750 ms) are kept in a rolling window. Three distinct gating rules control when the display changes:
 
@@ -46,7 +59,7 @@ The last 15 tick results (~750 ms) are kept in a rolling window. Three distinct 
 
 **Inactivity deactivation**: when no tick confirms the active chord for `DEACTIVATE_INACTIVITY_MS` (300 ms), the display clears. This is immune to room reverb and piano string resonance — the timer measures wall-clock time since the last confirmation, not signal energy levels.
 
-### 6. Key display
+### 7. Key display
 
 The detected chord's three MIDI notes are passed as `pressedNotes` to `useCircleOfFifthsDetection`, the same hook used by the Depinus app. That hook matches the pitch classes against tonic-triad and diatonic scale templates and highlights the resulting key(s) on the `CircleOfFifths` SVG component.
 
@@ -62,6 +75,8 @@ AnalyserNode (FFT 8192)
     │  every 50 ms
     ▼
 useChromaDetection          ← pitchDetection/useChromaDetection.ts
+    │  Phase 1: standard chroma from FFT bins
+    │  Phase 2: bass fundamental reconstruction (detectMissingFundamentals)
     │  Set<midiNote>
     ▼
 useCircleOfFifthsDetection  ← shared with main Depinus app
